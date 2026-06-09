@@ -1,10 +1,11 @@
 // ---------------------------------------------------------------------------
-// SP Portal — Frontend data layer.
+// SP Portal — Frontend data layer (v3.1).
 //
-// This is a localStorage-backed MOCK of the FastAPI backend described in the
-// PRD, so the UI is fully runnable/demoable without a server. Every function
-// here maps 1:1 to a backend endpoint; to go live, replace the bodies with
-// `fetch(import.meta.env.VITE_API_URL + ...)` calls returning the same shapes.
+// localStorage-backed MOCK of the FastAPI backend in the PRD, so the UI is fully
+// runnable without a server. Core model: a RegistrationSession groups many
+// Participant rows entered directly (no separate "pendata"). Every function maps
+// ~1:1 to a backend endpoint; to go live, replace the bodies with
+// `fetch(import.meta.env.VITE_API_URL + ...)`.
 // ---------------------------------------------------------------------------
 
 import type {
@@ -13,20 +14,27 @@ import type {
   NotificationChannel,
   NotificationLog,
   NotificationType,
-  Registrant,
+  Participant,
+  ParticipantInput,
+  ParticipantWithSession,
   RegistrationInput,
+  RegistrationSession,
   RegistrationStatus,
+  SessionWithParticipants,
+  SpIndukGroup,
   Stats,
 } from '../types';
-import { normalizeWhatsApp } from './format';
+import { calculateAge, compareSpCode, normalizeSpCode, normalizeWhatsApp, spInduk } from './format';
 
 const LS = {
-  registrants: 'sp.registrants',
+  sessions: 'sp.sessions',
+  participants: 'sp.participants',
   committees: 'sp.committees',
   event: 'sp.event_settings',
   logs: 'sp.notification_logs',
-  session: 'sp.session',
-  seeded: 'sp.seeded.v1',
+  session: 'sp.session', // auth session (login)
+  passwords: 'sp.passwords',
+  seeded: 'sp.seeded.v3_2',
 };
 
 // ----- low level storage helpers -------------------------------------------
@@ -55,9 +63,24 @@ function delay<T>(value: T, ms = 350): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
 }
 
-// Public, human-readable check-in code derived from the manage token.
-export function shortCode(r: Pick<Registrant, 'manage_token'>): string {
-  return ('SP-' + r.manage_token.slice(0, 6)).toUpperCase();
+// Public, human-readable check-in code derived from the session manage token.
+export function shortCode(s: Pick<RegistrationSession, 'manage_token'>): string {
+  return ('SP-' + s.manage_token.slice(0, 6)).toUpperCase();
+}
+
+// ----- composition helpers --------------------------------------------------
+function participantsOf(sessionId: string, all?: Participant[]): Participant[] {
+  const list = all ?? read<Participant[]>(LS.participants, []);
+  return list.filter((p) => p.session_id === sessionId).sort((a, b) => compareSpCode(a.sp_code, b.sp_code));
+}
+function withParticipants(s: RegistrationSession, all?: Participant[]): SessionWithParticipants {
+  return { ...s, participants: participantsOf(s.id, all) };
+}
+function flatten(p: Participant, s: RegistrationSession): ParticipantWithSession {
+  return { ...p, manage_token: s.manage_token, registered_at: s.registered_at };
+}
+function sessionActive(s: RegistrationSession, all?: Participant[]): boolean {
+  return participantsOf(s.id, all).some((p) => p.attendance_status === 'will_attend');
 }
 
 // ----- seeding --------------------------------------------------------------
@@ -68,16 +91,14 @@ function seed(): void {
     id: uid(),
     event_name: 'Reuni Akbar Keluarga Soero Pramono 2026',
     event_date: '2026-08-17T09:00:00.000Z',
-    location: 'Pendopo Joglo Soero Pramono',
-    address: 'Jl. Kenangan No. 17, Yogyakarta',
-    maps_query: 'Tugu Yogyakarta',
-    max_capacity: 500,
+    location: 'Sajian Kembang Turi',
+    address: 'Sleman, Yogyakarta',
+    maps_query: 'Sajian Kembang Turi',
     registration_deadline: '2026-08-01T16:59:00.000Z',
     registration_open: true,
     updated_at: nowISO(),
   };
 
-  // Default super-admin. Password is mock-hashed (see verifyPassword).
   const committees: Committee[] = [
     {
       id: uid(),
@@ -90,36 +111,88 @@ function seed(): void {
   ];
   const passwords: Record<string, string> = { 'admin@spportal.id': 'admin123' };
 
-  const branches = ['Trah Anak ke-1', 'Trah Anak ke-2', 'Trah Anak ke-3', 'Trah Anak ke-4'];
-  const sample: Registrant[] = Array.from({ length: 8 }).map((_, i) => {
-    const t = token();
-    const checked = i % 4 === 0;
-    return {
-      id: uid(),
-      full_name: ['Budi Santoso', 'Siti Aminah', 'Joko Widodo', 'Rina Wati', 'Agus Salim', 'Dewi Lestari', 'Hendra Gunawan', 'Maya Putri'][i],
-      birth_place_date: `Yogyakarta, ${5 + i} Januari 19${60 + i}`,
-      whatsapp_number: '628' + (1000000000 + i * 13579),
-      email: `peserta${i + 1}@example.com`,
-      last_occupation: ['Guru', 'Wiraswasta', 'PNS', 'Ibu Rumah Tangga', 'Pensiunan', 'Dokter', 'Petani', 'Mahasiswa'][i],
-      family_branch: branches[i % branches.length],
-      group_size: (i % 4) + 1,
-      group_details: i % 2 === 0 ? 'Bawa istri dan 1 anak' : 'Datang sendiri',
-      accommodation: i % 3 === 0 ? 'Rumah Keluarga' : 'Hotel / Penginapan',
-      sp_code: i % 2 === 0 ? 'SP' + (100 + i) : undefined,
-      attendance_status: i === 7 ? 'cancelled' : 'will_attend',
+  const sessions: RegistrationSession[] = [];
+  const participants: Participant[] = [];
+
+  function addSession(
+    parts: Array<Partial<Participant> & { full_name: string; sp_code: string }>,
+    opts: { daysAgo?: number; cancelled?: boolean } = {},
+  ) {
+    const id = uid();
+    sessions.push({
+      id,
+      manage_token: token(),
       privacy_consent: true,
-      manage_token: t,
-      is_checked_in: checked,
-      checked_in_at: checked ? nowISO() : null,
-      registered_at: new Date(Date.now() - (8 - i) * 86400000).toISOString(),
+      registered_at: new Date(Date.now() - (opts.daysAgo ?? 1) * 86400000).toISOString(),
       updated_at: null,
-    };
-  });
+    });
+    for (const p of parts) {
+      const checked = !!p.is_checked_in;
+      participants.push({
+        id: uid(),
+        session_id: id,
+        full_name: p.full_name,
+        sp_code: normalizeSpCode(p.sp_code),
+        birth_date: p.birth_date ?? '',
+        address: p.address ?? '',
+        last_occupation: p.last_occupation ?? '',
+        accommodation: p.accommodation ?? '',
+        email: p.email ?? null,
+        whatsapp_number: p.whatsapp_number ?? null,
+        attendance_status: opts.cancelled ? 'cancelled' : p.attendance_status ?? 'will_attend',
+        is_checked_in: checked,
+        checked_in_at: checked ? nowISO() : null,
+      });
+    }
+  }
+
+  addSession(
+    [
+      { full_name: 'Yoso Pramono', sp_code: 'SP4', birth_date: '1958-05-05', address: 'Yogyakarta', last_occupation: 'Guru', accommodation: 'Hotel / Penginapan', is_checked_in: true, whatsapp_number: '6281200000001' },
+      { full_name: 'Yuli Hastuti', sp_code: 'SP4A', birth_date: '1960-06-12', address: 'Yogyakarta', last_occupation: 'Ibu Rumah Tangga', accommodation: 'Hotel / Penginapan', is_checked_in: true },
+    ],
+    { daysAgo: 8 },
+  );
+  addSession(
+    [
+      { full_name: 'Hesti Wulandari', sp_code: 'SP4.1.3', birth_date: '1985-03-03', address: 'Solo', last_occupation: 'Wiraswasta', accommodation: 'Rumah Keluarga', whatsapp_number: '6281200000002' },
+      { full_name: 'Andi Saputra', sp_code: 'SP4.1.3A', birth_date: '1983-09-09', address: 'Solo' },
+    ],
+    { daysAgo: 7 },
+  );
+  addSession(
+    [
+      { full_name: 'Slamet Riyadi', sp_code: 'SP1', birth_date: '1950-01-01', address: 'Magelang', last_occupation: 'Pensiunan', accommodation: 'Rumah Sendiri (warga lokal)', is_checked_in: true },
+      { full_name: 'Bagus Nugroho', sp_code: 'SP1.2', birth_date: '1978-08-17', address: 'Magelang' },
+    ],
+    { daysAgo: 6 },
+  );
+  addSession(
+    [
+      { full_name: 'Dewi Anggraini', sp_code: 'SP2', birth_date: '1962-02-20', address: 'Semarang', last_occupation: 'Dokter', accommodation: 'Hotel / Penginapan', email: 'dewi.a@example.com' },
+      { full_name: 'Putri Maharani', sp_code: 'SP2.1', birth_date: '1990-11-11', address: 'Jakarta' },
+      { full_name: 'Reza Pratama', sp_code: 'SP2.1A', birth_date: '1988-07-07', address: 'Jakarta', accommodation: 'Hotel / Penginapan' },
+    ],
+    { daysAgo: 4 },
+  );
+  addSession(
+    [{ full_name: 'Agus Salim', sp_code: 'SP3', birth_date: '1965-12-30', address: 'Purworejo' }],
+    { daysAgo: 3, cancelled: true },
+  );
+  addSession(
+    [
+      { full_name: 'Kartika Sari', sp_code: 'SP4.5', birth_date: '1970-04-25', address: 'Yogyakarta', last_occupation: 'Perawat', accommodation: 'Rumah Keluarga' },
+      { full_name: 'Bambang Wijaya', sp_code: 'SP4.5A', birth_date: '1968-02-14', address: 'Yogyakarta' },
+      { full_name: 'Fajar Ramadhan', sp_code: 'SP4.2', birth_date: '1992-10-02', address: 'Sleman', last_occupation: 'Desainer' },
+    ],
+    { daysAgo: 1 },
+  );
 
   write(LS.event, event);
   write(LS.committees, committees);
-  write('sp.passwords', passwords);
-  write(LS.registrants, sample);
+  write(LS.passwords, passwords);
+  write(LS.sessions, sessions);
+  write(LS.participants, participants);
   write(LS.logs, [] as NotificationLog[]);
   write(LS.seeded, true);
 }
@@ -127,7 +200,7 @@ seed();
 
 // ----- notification logging (with simulated reliability) --------------------
 function logNotification(
-  registrant_id: string | null,
+  session_id: string | null,
   type: NotificationType,
   channel: NotificationChannel,
 ): NotificationLog {
@@ -135,7 +208,7 @@ function logNotification(
   const failed = Math.random() < 0.06;
   const entry: NotificationLog = {
     id: uid(),
-    registrant_id,
+    session_id,
     type,
     channel,
     status: failed ? 'failed' : 'sent',
@@ -158,9 +231,10 @@ export function getEventSettings(): Promise<EventSettings> {
 
 export function getRegistrationStatus(): Promise<RegistrationStatus> {
   const ev = read<EventSettings>(LS.event, {} as EventSettings);
-  const regs = read<Registrant[]>(LS.registrants, []);
-  const active = regs.filter((r) => r.attendance_status === 'will_attend');
-  const total_people = active.reduce((s, r) => s + (r.group_size || 1), 0);
+  const sessions = read<RegistrationSession[]>(LS.sessions, []);
+  const all = read<Participant[]>(LS.participants, []);
+  const activeSessions = sessions.filter((s) => sessionActive(s, all));
+  const total_people = all.filter((p) => p.attendance_status === 'will_attend').length;
 
   let open = true;
   let reason: RegistrationStatus['reason'] = 'open';
@@ -174,29 +248,18 @@ export function getRegistrationStatus(): Promise<RegistrationStatus> {
     open = false;
     reason = 'past_deadline';
     message = 'Maaf, batas waktu pendaftaran telah berakhir.';
-  } else if (ev.max_capacity != null && active.length >= ev.max_capacity) {
-    open = false;
-    reason = 'quota_full';
-    message = 'Maaf, kuota peserta sudah penuh.';
   }
 
   return delay({
     open,
     reason,
     message,
-    total_registered: active.length,
+    total_sessions: activeSessions.length,
     total_people,
-    capacity: ev.max_capacity,
     deadline: ev.registration_deadline,
   });
 }
 
-export class DuplicateError extends Error {
-  constructor(public registrant: Registrant) {
-    super('Nomor WhatsApp atau email sudah terdaftar.');
-    this.name = 'DuplicateError';
-  }
-}
 export class RegistrationClosedError extends Error {
   constructor(message: string) {
     super(message);
@@ -204,8 +267,26 @@ export class RegistrationClosedError extends Error {
   }
 }
 
-export async function submitRegistration(input: RegistrationInput): Promise<Registrant> {
-  // Honeypot: silently reject bots (pretend success would also be valid; we throw).
+function buildParticipant(session_id: string, input: ParticipantInput): Participant {
+  return {
+    id: uid(),
+    session_id,
+    full_name: input.full_name.trim(),
+    sp_code: normalizeSpCode(input.sp_code),
+    birth_date: input.birth_date.trim(),
+    address: input.address.trim(),
+    last_occupation: input.last_occupation?.trim() ?? '',
+    accommodation: input.accommodation?.trim() ?? '',
+    email: input.email?.trim().toLowerCase() || null,
+    whatsapp_number: input.whatsapp_number ? normalizeWhatsApp(input.whatsapp_number) : null,
+    attendance_status: 'will_attend',
+    is_checked_in: false,
+    checked_in_at: null,
+  };
+}
+
+export async function submitRegistration(input: RegistrationInput): Promise<SessionWithParticipants> {
+  // Honeypot: silently reject bots.
   if (input.website && input.website.trim() !== '') {
     throw new Error('Pengiriman ditolak.');
   }
@@ -213,92 +294,103 @@ export async function submitRegistration(input: RegistrationInput): Promise<Regi
   const status = await getRegistrationStatus();
   if (!status.open) throw new RegistrationClosedError(status.message);
 
-  const regs = read<Registrant[]>(LS.registrants, []);
-  const wa = normalizeWhatsApp(input.whatsapp_number);
-  const email = input.email.trim().toLowerCase();
+  if (!input.participants || input.participants.length === 0) {
+    throw new Error('Minimal satu peserta harus didaftarkan.');
+  }
 
-  // Duplicate prevention by WhatsApp/email.
-  const dup = regs.find(
-    (r) =>
-      r.attendance_status !== 'cancelled' &&
-      (r.whatsapp_number === wa || r.email.toLowerCase() === email),
-  );
-  if (dup) throw new DuplicateError(dup);
+  const sessions = read<RegistrationSession[]>(LS.sessions, []);
+  const allParts = read<Participant[]>(LS.participants, []);
 
-  const r: Registrant = {
+  const session: RegistrationSession = {
     id: uid(),
-    full_name: input.full_name.trim(),
-    birth_place_date: input.birth_place_date.trim(),
-    whatsapp_number: wa,
-    email,
-    last_occupation: input.last_occupation.trim(),
-    family_branch: input.family_branch,
-    group_size: Math.max(1, Number(input.group_size) || 1),
-    group_details: input.group_details.trim(),
-    accommodation: input.accommodation.trim(),
-    sp_code: input.sp_code?.trim() || undefined,
-    attendance_status: 'will_attend',
-    privacy_consent: !!input.privacy_consent,
     manage_token: token(),
-    is_checked_in: false,
-    checked_in_at: null,
+    privacy_consent: !!input.privacy_consent,
     registered_at: nowISO(),
     updated_at: null,
   };
-  regs.unshift(r);
-  write(LS.registrants, regs);
+  const newParts = input.participants.map((p) => buildParticipant(session.id, p));
+
+  sessions.unshift(session);
+  write(LS.sessions, sessions);
+  write(LS.participants, [...newParts, ...allParts]);
 
   // Fire-and-forget notifications (async/background in the real backend).
-  logNotification(r.id, 'committee_blast', 'whatsapp');
-  logNotification(r.id, 'committee_blast', 'email');
-  logNotification(r.id, 'participant_confirmation', 'whatsapp');
-  logNotification(r.id, 'participant_confirmation', 'email');
+  logNotification(session.id, 'committee_blast', 'whatsapp');
+  logNotification(session.id, 'committee_blast', 'email');
+  logNotification(session.id, 'participant_confirmation', 'whatsapp');
+  logNotification(session.id, 'participant_confirmation', 'email');
 
-  return delay(r);
+  return delay(withParticipants(session));
 }
 
 // ----- self-service (manage by token) --------------------------------------
-export function getRegistrantByToken(tok: string): Promise<Registrant | null> {
-  const regs = read<Registrant[]>(LS.registrants, []);
-  return delay(regs.find((r) => r.manage_token === tok) ?? null);
+export function getSessionByToken(tok: string): Promise<SessionWithParticipants | null> {
+  const s = read<RegistrationSession[]>(LS.sessions, []).find((x) => x.manage_token === tok);
+  return delay(s ? withParticipants(s) : null);
 }
 
-export async function updateRegistrationByToken(
+// One comprehensive self-service update: the full participant set. Participants
+// WITH an id are updated; WITHOUT id are added; existing ones omitted from the
+// list are removed. Status/check-in are preserved on update.
+export interface SessionFullUpdate {
+  participants?: Array<ParticipantInput & { id?: string }>;
+}
+
+export async function updateSessionByToken(
   tok: string,
-  patch: Partial<RegistrationInput>,
-): Promise<Registrant> {
-  const regs = read<Registrant[]>(LS.registrants, []);
-  const idx = regs.findIndex((r) => r.manage_token === tok);
+  patch: SessionFullUpdate,
+): Promise<SessionWithParticipants> {
+  const sessions = read<RegistrationSession[]>(LS.sessions, []);
+  const idx = sessions.findIndex((s) => s.manage_token === tok);
   if (idx < 0) throw new Error('Data pendaftaran tidak ditemukan.');
-  const cur = regs[idx];
-  const next: Registrant = {
-    ...cur,
-    full_name: patch.full_name?.trim() ?? cur.full_name,
-    birth_place_date: patch.birth_place_date?.trim() ?? cur.birth_place_date,
-    whatsapp_number: patch.whatsapp_number ? normalizeWhatsApp(patch.whatsapp_number) : cur.whatsapp_number,
-    email: patch.email?.trim().toLowerCase() ?? cur.email,
-    last_occupation: patch.last_occupation?.trim() ?? cur.last_occupation,
-    family_branch: patch.family_branch ?? cur.family_branch,
-    group_size: patch.group_size != null ? Math.max(1, Number(patch.group_size)) : cur.group_size,
-    group_details: patch.group_details?.trim() ?? cur.group_details,
-    accommodation: patch.accommodation?.trim() ?? cur.accommodation,
-    sp_code: patch.sp_code !== undefined ? patch.sp_code?.trim() || undefined : cur.sp_code,
-    updated_at: nowISO(),
-  };
-  regs[idx] = next;
-  write(LS.registrants, regs);
-  logNotification(next.id, 'committee_blast', 'whatsapp'); // notify panitia of change
-  return delay(next);
+  const cur = sessions[idx];
+  sessions[idx] = { ...cur, updated_at: nowISO() };
+  write(LS.sessions, sessions);
+
+  if (patch.participants) {
+    const all = read<Participant[]>(LS.participants, []);
+    const others = all.filter((p) => p.session_id !== cur.id);
+    const existing = new Map(all.filter((p) => p.session_id === cur.id).map((p) => [p.id, p]));
+    const rebuilt: Participant[] = patch.participants.map((inp) => {
+      const prev = inp.id ? existing.get(inp.id) : undefined;
+      if (prev) {
+        return {
+          ...prev,
+          full_name: inp.full_name.trim(),
+          sp_code: normalizeSpCode(inp.sp_code),
+          birth_date: inp.birth_date.trim(),
+          address: inp.address.trim(),
+          last_occupation: inp.last_occupation?.trim() ?? '',
+          accommodation: inp.accommodation?.trim() ?? '',
+          email: inp.email?.trim().toLowerCase() || null,
+          whatsapp_number: inp.whatsapp_number ? normalizeWhatsApp(inp.whatsapp_number) : null,
+        };
+      }
+      return buildParticipant(cur.id, inp);
+    });
+    write(LS.participants, [...others, ...rebuilt]);
+  }
+
+  logNotification(cur.id, 'committee_blast', 'whatsapp'); // notify panitia of change
+  return delay(withParticipants(sessions[idx]));
 }
 
-export async function cancelRegistrationByToken(tok: string): Promise<Registrant> {
-  const regs = read<Registrant[]>(LS.registrants, []);
-  const idx = regs.findIndex((r) => r.manage_token === tok);
+export async function cancelRegistrationByToken(tok: string): Promise<SessionWithParticipants> {
+  const sessions = read<RegistrationSession[]>(LS.sessions, []);
+  const idx = sessions.findIndex((s) => s.manage_token === tok);
   if (idx < 0) throw new Error('Data pendaftaran tidak ditemukan.');
-  regs[idx] = { ...regs[idx], attendance_status: 'cancelled', updated_at: nowISO() };
-  write(LS.registrants, regs);
-  logNotification(regs[idx].id, 'committee_blast', 'whatsapp');
-  return delay(regs[idx]);
+  const cur = sessions[idx];
+  sessions[idx] = { ...cur, updated_at: nowISO() };
+  write(LS.sessions, sessions);
+
+  const all = read<Participant[]>(LS.participants, []);
+  for (const p of all) {
+    if (p.session_id === cur.id) p.attendance_status = 'cancelled';
+  }
+  write(LS.participants, all);
+
+  logNotification(cur.id, 'committee_blast', 'whatsapp');
+  return delay(withParticipants(sessions[idx]));
 }
 
 // ===========================================================================
@@ -310,9 +402,8 @@ export interface Session {
   committee: Committee;
 }
 
-// Mock password store + naive "hash" check.
 function verifyPassword(email: string, password: string): boolean {
-  const pws = read<Record<string, string>>('sp.passwords', {});
+  const pws = read<Record<string, string>>(LS.passwords, {});
   return pws[email] === password;
 }
 
@@ -335,84 +426,146 @@ export function logout(): void {
   localStorage.removeItem(LS.session);
 }
 
-export function listRegistrants(): Promise<Registrant[]> {
-  return delay(read<Registrant[]>(LS.registrants, []));
+// ----- sessions & participants (admin) --------------------------------------
+export function listSessions(): Promise<SessionWithParticipants[]> {
+  const sessions = read<RegistrationSession[]>(LS.sessions, []);
+  const all = read<Participant[]>(LS.participants, []);
+  return delay(sessions.map((s) => withParticipants(s, all)));
 }
 
-export function getRegistrant(id: string): Promise<Registrant | null> {
-  const regs = read<Registrant[]>(LS.registrants, []);
-  return delay(regs.find((r) => r.id === id) ?? null);
+export function getSessionById(id: string): Promise<SessionWithParticipants | null> {
+  const s = read<RegistrationSession[]>(LS.sessions, []).find((x) => x.id === id);
+  return delay(s ? withParticipants(s) : null);
 }
 
-export async function adminUpdateRegistrant(
-  id: string,
-  patch: Partial<Registrant>,
-): Promise<Registrant> {
-  const regs = read<Registrant[]>(LS.registrants, []);
-  const idx = regs.findIndex((r) => r.id === id);
-  if (idx < 0) throw new Error('Pendaftar tidak ditemukan.');
-  regs[idx] = { ...regs[idx], ...patch, updated_at: nowISO() };
-  write(LS.registrants, regs);
-  return delay(regs[idx]);
-}
-
-export async function deleteRegistrant(id: string): Promise<void> {
-  const regs = read<Registrant[]>(LS.registrants, []).filter((r) => r.id !== id);
-  write(LS.registrants, regs);
+export async function deleteSession(id: string): Promise<void> {
+  write(LS.sessions, read<RegistrationSession[]>(LS.sessions, []).filter((s) => s.id !== id));
+  write(LS.participants, read<Participant[]>(LS.participants, []).filter((p) => p.session_id !== id));
   await delay(null, 200);
 }
 
-export async function checkIn(id: string, value = true): Promise<Registrant> {
-  return adminUpdateRegistrant(id, {
-    is_checked_in: value,
-    checked_in_at: value ? nowISO() : null,
-  });
+export async function addParticipant(session_id: string, input: ParticipantInput): Promise<Participant> {
+  const sessions = read<RegistrationSession[]>(LS.sessions, []);
+  if (!sessions.some((s) => s.id === session_id)) throw new Error('Sesi tidak ditemukan.');
+  const all = read<Participant[]>(LS.participants, []);
+  const p = buildParticipant(session_id, input);
+  write(LS.participants, [...all, p]);
+  return delay(p);
 }
 
-export function findForCheckIn(query: string): Promise<Registrant[]> {
+export async function updateParticipant(id: string, patch: Partial<Participant>): Promise<Participant> {
+  const all = read<Participant[]>(LS.participants, []);
+  const idx = all.findIndex((p) => p.id === id);
+  if (idx < 0) throw new Error('Peserta tidak ditemukan.');
+  const sp_code = patch.sp_code != null ? normalizeSpCode(patch.sp_code) : all[idx].sp_code;
+  all[idx] = { ...all[idx], ...patch, sp_code };
+  write(LS.participants, all);
+  return delay(all[idx]);
+}
+
+export async function deleteParticipant(id: string): Promise<void> {
+  write(LS.participants, read<Participant[]>(LS.participants, []).filter((p) => p.id !== id));
+  await delay(null, 200);
+}
+
+export async function checkInParticipant(id: string, value = true): Promise<Participant> {
+  return updateParticipant(id, { is_checked_in: value, checked_in_at: value ? nowISO() : null });
+}
+
+export async function setParticipantStatus(
+  id: string,
+  status: Participant['attendance_status'],
+): Promise<Participant> {
+  return updateParticipant(id, { attendance_status: status });
+}
+
+// ----- check-in search (returns participants with session context) ----------
+export function findForCheckIn(query: string): Promise<ParticipantWithSession[]> {
   const q = query.trim().toLowerCase();
-  const regs = read<Registrant[]>(LS.registrants, []).filter(
-    (r) => r.attendance_status !== 'cancelled',
-  );
-  if (!q) return delay(regs);
+  const sessions = read<RegistrationSession[]>(LS.sessions, []);
+  const byId = new Map(sessions.map((s) => [s.id, s]));
+  const all = read<Participant[]>(LS.participants, [])
+    .filter((p) => p.attendance_status !== 'cancelled')
+    .map((p) => {
+      const s = byId.get(p.session_id);
+      return s ? flatten(p, s) : null;
+    })
+    .filter((x): x is ParticipantWithSession => x !== null)
+    .sort((a, b) => compareSpCode(a.sp_code, b.sp_code));
+
+  if (!q) return delay(all);
   return delay(
-    regs.filter(
-      (r) =>
-        r.full_name.toLowerCase().includes(q) ||
-        shortCode(r).toLowerCase().includes(q) ||
-        r.manage_token.toLowerCase().includes(q) ||
-        r.whatsapp_number.includes(q),
+    all.filter(
+      (p) =>
+        p.full_name.toLowerCase().includes(q) ||
+        p.sp_code.toLowerCase().includes(q) ||
+        shortCode(p).toLowerCase().includes(q) ||
+        (p.whatsapp_number ?? '').includes(q),
     ),
   );
 }
 
+// ----- SP Induk grouping (FR-ADM §5.4) --------------------------------------
+export function listSpInduk(): Promise<string[]> {
+  const all = read<Participant[]>(LS.participants, []);
+  const set = new Set(all.map((p) => spInduk(p.sp_code)));
+  return delay(Array.from(set).sort(compareSpCode));
+}
+
+export function getGroupedBySpInduk(opts: { onlyAttending?: boolean } = {}): Promise<SpIndukGroup[]> {
+  const onlyAttending = opts.onlyAttending ?? true;
+  const sessions = read<RegistrationSession[]>(LS.sessions, []);
+  const byId = new Map(sessions.map((s) => [s.id, s]));
+  let parts = read<Participant[]>(LS.participants, []);
+  if (onlyAttending) parts = parts.filter((p) => p.attendance_status === 'will_attend');
+
+  const groups = new Map<string, ParticipantWithSession[]>();
+  for (const p of parts) {
+    const s = byId.get(p.session_id);
+    if (!s) continue;
+    const induk = spInduk(p.sp_code);
+    const arr = groups.get(induk) ?? [];
+    arr.push(flatten(p, s));
+    groups.set(induk, arr);
+  }
+  const result: SpIndukGroup[] = Array.from(groups.entries())
+    .map(([induk, participants]) => ({
+      induk,
+      participants: participants.sort((a, b) => compareSpCode(a.sp_code, b.sp_code)),
+    }))
+    .sort((a, b) => compareSpCode(a.induk, b.induk));
+  return delay(result);
+}
+
 // ----- stats ----------------------------------------------------------------
 export function getStats(): Promise<Stats> {
-  const regs = read<Registrant[]>(LS.registrants, []);
-  const active = regs.filter((r) => r.attendance_status === 'will_attend');
+  const sessions = read<RegistrationSession[]>(LS.sessions, []);
+  const all = read<Participant[]>(LS.participants, []);
+  const active = all.filter((p) => p.attendance_status === 'will_attend');
 
-  const branchMap = new Map<string, { count: number; people: number }>();
-  for (const r of active) {
-    const cur = branchMap.get(r.family_branch) ?? { count: 0, people: 0 };
-    cur.count += 1;
-    cur.people += r.group_size || 1;
-    branchMap.set(r.family_branch, cur);
+  const indukMap = new Map<string, { people: number; sessions: Set<string> }>();
+  for (const p of active) {
+    const induk = spInduk(p.sp_code);
+    const cur = indukMap.get(induk) ?? { people: 0, sessions: new Set<string>() };
+    cur.people += 1;
+    cur.sessions.add(p.session_id);
+    indukMap.set(induk, cur);
   }
 
   const trendMap = new Map<string, number>();
-  for (const r of regs) {
-    const day = r.registered_at.slice(0, 10);
+  for (const s of sessions) {
+    const day = s.registered_at.slice(0, 10);
     trendMap.set(day, (trendMap.get(day) ?? 0) + 1);
   }
 
   return delay({
-    total_registrants: active.length,
-    total_people: active.reduce((s, r) => s + (r.group_size || 1), 0),
-    total_cancelled: regs.filter((r) => r.attendance_status === 'cancelled').length,
-    total_checked_in: regs.filter((r) => r.is_checked_in).length,
-    by_branch: Array.from(branchMap.entries())
-      .map(([branch, v]) => ({ branch, ...v }))
-      .sort((a, b) => b.count - a.count),
+    total_sessions: sessions.filter((s) => sessionActive(s, all)).length,
+    total_people: active.length,
+    total_cancelled: all.filter((p) => p.attendance_status === 'cancelled').length,
+    total_checked_in: all.filter((p) => p.is_checked_in).length,
+    by_sp_induk: Array.from(indukMap.entries())
+      .map(([induk, v]) => ({ induk, sessions: v.sessions.size, people: v.people }))
+      .sort((a, b) => compareSpCode(a.induk, b.induk)),
     trend: Array.from(trendMap.entries())
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date)),
@@ -420,18 +573,33 @@ export function getStats(): Promise<Stats> {
 }
 
 // ----- CSV export (UTF-8 BOM, Excel-ready) ----------------------------------
-export function exportCsv(): string {
-  const regs = read<Registrant[]>(LS.registrants, []);
-  const headers = [
-    'full_name', 'birth_place_date', 'whatsapp_number', 'email', 'last_occupation',
-    'family_branch', 'group_size', 'group_details', 'accommodation', 'sp_code',
-    'attendance_status', 'is_checked_in', 'checked_in_at', 'registered_at',
-  ];
+const CSV_HEADERS = [
+  'full_name', 'sp_code', 'sp_induk', 'birth_date', 'age', 'address', 'last_occupation',
+  'accommodation', 'email', 'whatsapp_number',
+  'attendance_status', 'is_checked_in', 'checked_in_at', 'registered_at',
+];
+
+export function exportCsv(opts: { induk?: string } = {}): string {
+  const sessions = read<RegistrationSession[]>(LS.sessions, []);
+  const byId = new Map(sessions.map((s) => [s.id, s]));
+  let rows = read<Participant[]>(LS.participants, [])
+    .map((p) => {
+      const s = byId.get(p.session_id);
+      return s ? flatten(p, s) : null;
+    })
+    .filter((x): x is ParticipantWithSession => x !== null);
+  if (opts.induk && opts.induk !== 'all') rows = rows.filter((p) => spInduk(p.sp_code) === opts.induk);
+  rows.sort((a, b) => compareSpCode(a.sp_code, b.sp_code));
+
   const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const rows = regs.map((r) =>
-    headers.map((h) => esc((r as unknown as Record<string, unknown>)[h])).join(','),
+  const body = rows.map((p) =>
+    CSV_HEADERS.map((h) => {
+      if (h === 'sp_induk') return esc(spInduk(p.sp_code));
+      if (h === 'age') return esc(calculateAge(p.birth_date) ?? '');
+      return esc((p as unknown as Record<string, unknown>)[h]);
+    }).join(','),
   );
-  return '﻿' + [headers.join(','), ...rows].join('\r\n');
+  return '﻿' + [CSV_HEADERS.join(','), ...body].join('\r\n');
 }
 
 // ----- broadcast reminders --------------------------------------------------
@@ -443,21 +611,26 @@ export interface BroadcastResult {
 }
 
 export async function broadcastReminder(opts: {
-  branch?: string;
+  induk?: string;
   onlyAttending?: boolean;
   channels: NotificationChannel[];
 }): Promise<BroadcastResult> {
-  let regs = read<Registrant[]>(LS.registrants, []);
-  if (opts.onlyAttending) regs = regs.filter((r) => r.attendance_status === 'will_attend');
-  if (opts.branch && opts.branch !== 'all') regs = regs.filter((r) => r.family_branch === opts.branch);
+  const sessions = read<RegistrationSession[]>(LS.sessions, []);
+  const byId = new Map(sessions.map((s) => [s.id, s]));
+  let parts = read<Participant[]>(LS.participants, []);
+  if (opts.onlyAttending) parts = parts.filter((p) => p.attendance_status === 'will_attend');
+  if (opts.induk && opts.induk !== 'all') parts = parts.filter((p) => spInduk(p.sp_code) === opts.induk);
+
+  // De-duplicate to one message per session.
+  const sessionIds = Array.from(new Set(parts.map((p) => p.session_id))).filter((id) => byId.has(id));
 
   const logs: NotificationLog[] = [];
-  for (const r of regs) {
-    for (const ch of opts.channels) logs.push(logNotification(r.id, 'reminder', ch));
+  for (const sid of sessionIds) {
+    for (const ch of opts.channels) logs.push(logNotification(sid, 'reminder', ch));
   }
   return delay(
     {
-      total: regs.length,
+      total: sessionIds.length,
       sent: logs.filter((l) => l.status === 'sent').length,
       failed: logs.filter((l) => l.status === 'failed').length,
       logs,
@@ -518,9 +691,9 @@ export async function createCommittee(input: {
   };
   committees.push(c);
   write(LS.committees, committees);
-  const pws = read<Record<string, string>>('sp.passwords', {});
+  const pws = read<Record<string, string>>(LS.passwords, {});
   pws[c.email] = input.password;
-  write('sp.passwords', pws);
+  write(LS.passwords, pws);
   return delay(c);
 }
 

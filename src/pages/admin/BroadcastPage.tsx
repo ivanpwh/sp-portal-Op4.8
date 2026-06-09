@@ -1,7 +1,6 @@
-import { useState } from 'react';
-import { broadcastReminder, type BroadcastResult } from '../../lib/api';
+import { useEffect, useState } from 'react';
+import { broadcastReminder, listSpInduk, type BroadcastResult } from '../../lib/api';
 import type { NotificationChannel } from '../../types';
-import { FAMILY_BRANCHES } from '../../lib/constants';
 import { Alert, Button, Card, Field, PageLoader, Select, Textarea } from '../../components/ui';
 
 const TEMPLATES: Record<string, string> = {
@@ -11,12 +10,17 @@ const TEMPLATES: Record<string, string> = {
 };
 
 export default function BroadcastPage() {
-  const [branch, setBranch] = useState('all');
+  const [induk, setInduk] = useState('all');
+  const [indukOptions, setIndukOptions] = useState<string[]>([]);
   const [onlyAttending, setOnlyAttending] = useState(true);
   const [channels, setChannels] = useState<NotificationChannel[]>(['whatsapp', 'email']);
   const [message, setMessage] = useState(TEMPLATES['H-7']);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<BroadcastResult | null>(null);
+
+  useEffect(() => {
+    listSpInduk().then(setIndukOptions);
+  }, []);
 
   function toggleChannel(ch: NotificationChannel) {
     setChannels((c) => (c.includes(ch) ? c.filter((x) => x !== ch) : [...c, ch]));
@@ -27,7 +31,7 @@ export default function BroadcastPage() {
     setSending(true);
     setResult(null);
     try {
-      const res = await broadcastReminder({ branch, onlyAttending, channels });
+      const res = await broadcastReminder({ induk, onlyAttending, channels });
       setResult(res);
     } finally {
       setSending(false);
@@ -42,10 +46,10 @@ export default function BroadcastPage() {
       </div>
 
       <Card className="space-y-5">
-        <Field label="Segmen Penerima" hint="Pilih cabang keluarga tertentu atau semua.">
-          <Select value={branch} onChange={(e) => setBranch(e.target.value)}>
-            <option value="all">Semua Trah</option>
-            {FAMILY_BRANCHES.map((b) => (
+        <Field label="Segmen Penerima" hint="Pilih kelompok SP Induk tertentu atau semua.">
+          <Select value={induk} onChange={(e) => setInduk(e.target.value)}>
+            <option value="all">Semua SP Induk</option>
+            {indukOptions.map((b) => (
               <option key={b} value={b}>{b}</option>
             ))}
           </Select>
@@ -104,7 +108,7 @@ export default function BroadcastPage() {
       {result && (
         <Alert variant={result.failed > 0 ? 'warning' : 'success'} title="Rekap Pengiriman">
           <p>
-            Total target: <strong>{result.total}</strong> peserta · Berhasil: <strong>{result.sent}</strong> ·
+            Total target: <strong>{result.total}</strong> sesi · Berhasil: <strong>{result.sent}</strong> ·
             Gagal: <strong>{result.failed}</strong>
           </p>
           {result.failed > 0 && (

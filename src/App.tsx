@@ -10,7 +10,8 @@ import ManagePage from './pages/public/ManagePage';
 
 import LoginPage from './pages/admin/LoginPage';
 import DashboardPage from './pages/admin/DashboardPage';
-import RegistrantDetailPage from './pages/admin/RegistrantDetailPage';
+import SessionDetailPage from './pages/admin/SessionDetailPage';
+import GroupingPage from './pages/admin/GroupingPage';
 import StatisticsPage from './pages/admin/StatisticsPage';
 import BroadcastPage from './pages/admin/BroadcastPage';
 import CheckinPage from './pages/admin/CheckinPage';
@@ -51,7 +52,8 @@ export default function App() {
         }
       >
         <Route path="/admin" element={<DashboardPage />} />
-        <Route path="/admin/peserta/:id" element={<RegistrantDetailPage />} />
+        <Route path="/admin/sesi/:id" element={<SessionDetailPage />} />
+        <Route path="/admin/pengelompokan" element={<GroupingPage />} />
         <Route path="/admin/statistik" element={<StatisticsPage />} />
         <Route path="/admin/broadcast" element={<BroadcastPage />} />
         <Route path="/admin/checkin" element={<CheckinPage />} />

@@ -2,68 +2,153 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   cancelRegistrationByToken,
-  getRegistrantByToken,
+  getSessionByToken,
   shortCode,
-  updateRegistrationByToken,
+  updateSessionByToken,
+  type SessionFullUpdate,
 } from '../../lib/api';
-import type { Registrant, RegistrationInput } from '../../types';
-import { ACCOMMODATION_OPTIONS, FAMILY_BRANCHES } from '../../lib/constants';
-import { isValidEmail, isValidWhatsApp } from '../../lib/format';
-import { Alert, Badge, Button, Card, Field, Input, Modal, PageLoader, Select, Textarea } from '../../components/ui';
+import type { SessionWithParticipants } from '../../types';
+import { ACCOMMODATION_OPTIONS, SP_CODE_HINT } from '../../lib/constants';
+import { isValidEmail, isValidSpCode, isValidWhatsApp } from '../../lib/format';
+import { Alert, Badge, Button, Card, Field, Input, Modal, PageLoader, Select } from '../../components/ui';
+import { DatePicker } from '../../components/DatePicker';
+import { RegionPicker } from '../../components/RegionPicker';
+
+interface PRow {
+  key: string;
+  id?: string;
+  full_name: string;
+  sp_code: string;
+  birth_date: string;
+  address: string;
+  last_occupation: string;
+  accommodation: string;
+  email: string;
+  whatsapp_number: string;
+}
+type PField = Exclude<keyof PRow, 'key' | 'id'>;
+type PErrors = Partial<Record<PField, string>>;
+
+function rowKey(): string {
+  return (crypto.randomUUID && crypto.randomUUID()) || Math.random().toString(36).slice(2);
+}
+function rowsFrom(session: SessionWithParticipants): PRow[] {
+  return session.participants.map((p) => ({
+    key: p.id,
+    id: p.id,
+    full_name: p.full_name,
+    sp_code: p.sp_code,
+    birth_date: p.birth_date,
+    address: p.address,
+    last_occupation: p.last_occupation,
+    accommodation: p.accommodation,
+    email: p.email ?? '',
+    whatsapp_number: p.whatsapp_number ?? '',
+  }));
+}
+function emptyRow(): PRow {
+  return {
+    key: rowKey(),
+    full_name: '',
+    sp_code: '',
+    birth_date: '',
+    address: '',
+    last_occupation: '',
+    accommodation: '',
+    email: '',
+    whatsapp_number: '',
+  };
+}
 
 export default function ManagePage() {
   const { token = '' } = useParams();
-  const [registrant, setRegistrant] = useState<Registrant | null>(null);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [session, setSession] = useState<SessionWithParticipants | null>(null);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState<Partial<RegistrationInput>>({});
+  const [rows, setRows] = useState<PRow[]>([]);
+  const [pErrors, setPErrors] = useState<PErrors[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
+  function hydrate(s: SessionWithParticipants) {
+    setSession(s);
+    const r = rowsFrom(s);
+    setRows(r);
+    setPErrors(r.map(() => ({})));
+  }
+
   useEffect(() => {
-    getRegistrantByToken(token)
-      .then((r) => {
-        setRegistrant(r);
-        if (r) {
-          setForm({
-            full_name: r.full_name,
-            birth_place_date: r.birth_place_date,
-            whatsapp_number: r.whatsapp_number,
-            email: r.email,
-            last_occupation: r.last_occupation,
-            family_branch: r.family_branch,
-            group_size: r.group_size,
-            group_details: r.group_details,
-            accommodation: r.accommodation,
-            sp_code: r.sp_code ?? '',
-          });
-        }
+    getSessionByToken(token)
+      .then((s) => {
+        if (s) hydrate(s);
+        else setSession(null);
       })
       .finally(() => setLoading(false));
   }, [token]);
 
-  function set<K extends keyof RegistrationInput>(key: K, value: RegistrationInput[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
+  function setRow(idx: number, key: PField, value: string) {
+    setRows((list) => list.map((p, i) => (i === idx ? { ...p, [key]: value } : p)));
+    setPErrors((errs) => errs.map((e, i) => (i === idx ? { ...e, [key]: undefined } : e)));
     setSaved(false);
+  }
+  function addRow() {
+    setRows((list) => [...list, emptyRow()]);
+    setPErrors((errs) => [...errs, {}]);
+    setSaved(false);
+  }
+  function removeRow(idx: number) {
+    setRows((list) => (list.length <= 1 ? list : list.filter((_, i) => i !== idx)));
+    setPErrors((errs) => (errs.length <= 1 ? errs : errs.filter((_, i) => i !== idx)));
+    setSaved(false);
+  }
+
+  function validate(): boolean {
+    let ok = true;
+    const pe: PErrors[] = rows.map((p) => {
+      const e: PErrors = {};
+      if (!p.full_name.trim()) e.full_name = 'Nama lengkap wajib diisi.';
+      if (!p.sp_code.trim()) e.sp_code = 'Kode SP wajib diisi.';
+      else if (!isValidSpCode(p.sp_code)) e.sp_code = 'Format kode SP tidak valid (mis. SP4.1.3A).';
+      if (!p.birth_date.trim()) e.birth_date = 'Tanggal lahir wajib diisi.';
+      else if (new Date(p.birth_date) > new Date()) e.birth_date = 'Tanggal lahir tidak boleh di masa depan.';
+      if (!p.address.trim()) e.address = 'Pilih kecamatan/kota domisili dari daftar.';
+      if (p.email.trim() && !isValidEmail(p.email)) e.email = 'Format email tidak valid.';
+      if (p.whatsapp_number.trim() && !isValidWhatsApp(p.whatsapp_number))
+        e.whatsapp_number = 'Nomor WhatsApp tidak valid.';
+      if (Object.keys(e).length) ok = false;
+      return e;
+    });
+    setPErrors(pe);
+    return ok;
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (form.whatsapp_number && !isValidWhatsApp(form.whatsapp_number)) {
-      setError('Nomor WhatsApp tidak valid.');
-      return;
-    }
-    if (form.email && !isValidEmail(form.email)) {
-      setError('Format email tidak valid.');
+    if (!validate()) {
+      setError('Periksa kembali data peserta yang ditandai.');
       return;
     }
     setSaving(true);
+    const patch: SessionFullUpdate = {
+      participants: rows.map((p) => ({
+        id: p.id,
+        full_name: p.full_name,
+        sp_code: p.sp_code,
+        birth_date: p.birth_date,
+        address: p.address,
+        last_occupation: p.last_occupation,
+        accommodation: p.accommodation,
+        email: p.email,
+        whatsapp_number: p.whatsapp_number,
+      })),
+    };
     try {
-      const updated = await updateRegistrationByToken(token, form);
-      setRegistrant(updated);
+      const updated = await updateSessionByToken(token, patch);
+      hydrate(updated);
       setSaved(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
@@ -77,7 +162,7 @@ export default function ManagePage() {
     setCancelling(true);
     try {
       const updated = await cancelRegistrationByToken(token);
-      setRegistrant(updated);
+      hydrate(updated);
       setConfirmCancel(false);
     } catch (err) {
       setError((err as Error).message);
@@ -88,7 +173,7 @@ export default function ManagePage() {
 
   if (loading) return <PageLoader />;
 
-  if (!registrant) {
+  if (!session) {
     return (
       <div className="container-app py-12">
         <Alert variant="error" title="Tautan tidak valid">
@@ -101,14 +186,16 @@ export default function ManagePage() {
     );
   }
 
-  const cancelled = registrant.attendance_status === 'cancelled';
+  const cancelled =
+    session.participants.length > 0 &&
+    session.participants.every((p) => p.attendance_status === 'cancelled');
 
   return (
     <div className="container-app py-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">Kelola Pendaftaran</h1>
-          <p className="mt-1 text-sm text-slate-500">Kode: {shortCode(registrant)}</p>
+          <p className="mt-1 text-sm text-slate-500">Kode: {shortCode(session)}</p>
         </div>
         {cancelled ? <Badge color="red">Dibatalkan</Badge> : <Badge color="green">Akan Hadir</Badge>}
       </div>
@@ -137,56 +224,87 @@ export default function ManagePage() {
         </Card>
       ) : (
         <form onSubmit={save} className="space-y-5">
-          <Card className="space-y-5">
-            <Field label="Nama Lengkap" required>
-              <Input value={form.full_name ?? ''} onChange={(e) => set('full_name', e.target.value)} />
-            </Field>
-            <Field label="Tempat, Tanggal Lahir" required>
-              <Input value={form.birth_place_date ?? ''} onChange={(e) => set('birth_place_date', e.target.value)} />
-            </Field>
-            <Field label="Nomor WhatsApp" required>
-              <Input type="tel" inputMode="numeric" value={form.whatsapp_number ?? ''} onChange={(e) => set('whatsapp_number', e.target.value)} />
-            </Field>
-            <Field label="Email" required>
-              <Input type="email" value={form.email ?? ''} onChange={(e) => set('email', e.target.value)} />
-            </Field>
-            <Field label="Pekerjaan Terakhir" required>
-              <Input value={form.last_occupation ?? ''} onChange={(e) => set('last_occupation', e.target.value)} />
-            </Field>
-          </Card>
+          <div className="flex items-end justify-between">
+            <h2 className="text-lg font-bold text-slate-900">Peserta</h2>
+            <span className="text-sm text-slate-500">{rows.length} peserta</span>
+          </div>
 
-          <Card className="space-y-5">
-            <Field label="Trah / Cabang Keluarga" required>
-              <Select value={form.family_branch ?? ''} onChange={(e) => set('family_branch', e.target.value)}>
-                {FAMILY_BRANCHES.map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Jumlah Rombongan" required>
-              <Input type="number" min={1} value={form.group_size ?? 1} onChange={(e) => set('group_size', Number(e.target.value))} />
-            </Field>
-            <Field label="Detail Rombongan" required>
-              <Textarea value={form.group_details ?? ''} onChange={(e) => set('group_details', e.target.value)} />
-            </Field>
-            <Field label="Rencana Lokasi Menginap" required>
-              <Select value={form.accommodation ?? ''} onChange={(e) => set('accommodation', e.target.value)}>
-                {ACCOMMODATION_OPTIONS.map((a) => (
-                  <option key={a} value={a}>{a}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Kode SP">
-              <Input value={form.sp_code ?? ''} onChange={(e) => set('sp_code', e.target.value)} placeholder="Opsional" />
-            </Field>
-          </Card>
+          {rows.map((p, idx) => {
+            const e = pErrors[idx] ?? {};
+            return (
+              <Card key={p.key} className="space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <span className="inline-flex items-center gap-2 font-bold text-slate-800">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-sm text-brand-700">
+                      {idx + 1}
+                    </span>
+                    Peserta {idx + 1}
+                  </span>
+                  {rows.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeRow(idx)}
+                      className="rounded-lg px-2 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      ✕ Hapus
+                    </button>
+                  )}
+                </div>
+
+                <Field label="Nama Lengkap" required error={e.full_name}>
+                  <Input value={p.full_name} onChange={(ev) => setRow(idx, 'full_name', ev.target.value)} aria-invalid={!!e.full_name} />
+                </Field>
+                <Field label="Kode SP" required error={e.sp_code} hint={SP_CODE_HINT}>
+                  <Input
+                    value={p.sp_code}
+                    onChange={(ev) => setRow(idx, 'sp_code', ev.target.value)}
+                    aria-invalid={!!e.sp_code}
+                    className="font-mono uppercase"
+                  />
+                </Field>
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <Field label="Tanggal Lahir" required error={e.birth_date}>
+                    <DatePicker value={p.birth_date} onChange={(v) => setRow(idx, 'birth_date', v)} max={todayStr} ariaInvalid={!!e.birth_date} />
+                  </Field>
+                  <Field label="Alamat Domisili" required error={e.address} hint="Ketik untuk mencari kecamatan/kota domisili.">
+                    <RegionPicker value={p.address} onChange={(v) => setRow(idx, 'address', v)} ariaInvalid={!!e.address} idPrefix={`reg-${p.key}`} />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <Field label="Pekerjaan Terakhir" hint="Opsional">
+                    <Input value={p.last_occupation} onChange={(ev) => setRow(idx, 'last_occupation', ev.target.value)} />
+                  </Field>
+                  <Field label="Rencana Lokasi Menginap" hint="Opsional">
+                    <Select value={p.accommodation} onChange={(ev) => setRow(idx, 'accommodation', ev.target.value)}>
+                      <option value="">— Pilih (opsional) —</option>
+                      {ACCOMMODATION_OPTIONS.map((a) => (
+                        <option key={a} value={a}>{a}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <Field label="Email" error={e.email} hint="Opsional">
+                    <Input type="email" value={p.email} onChange={(ev) => setRow(idx, 'email', ev.target.value)} aria-invalid={!!e.email} />
+                  </Field>
+                  <Field label="No. WhatsApp / HP" error={e.whatsapp_number} hint="Opsional">
+                    <Input type="tel" inputMode="numeric" value={p.whatsapp_number} onChange={(ev) => setRow(idx, 'whatsapp_number', ev.target.value)} aria-invalid={!!e.whatsapp_number} />
+                  </Field>
+                </div>
+              </Card>
+            );
+          })}
+
+          <Button type="button" variant="outline" fullWidth onClick={addRow}>
+            + Tambah Peserta
+          </Button>
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button type="submit" loading={saving} fullWidth>
               Simpan Perubahan
             </Button>
             <Button type="button" variant="danger" onClick={() => setConfirmCancel(true)} fullWidth>
-              Batalkan Kehadiran
+              Batalkan Seluruh Kehadiran
             </Button>
           </div>
         </form>
@@ -200,8 +318,9 @@ export default function ManagePage() {
 
       <Modal open={confirmCancel} onClose={() => setConfirmCancel(false)} title="Batalkan Kehadiran?">
         <p className="text-slate-600">
-          Anda yakin ingin membatalkan kehadiran? Status akan diubah menjadi <strong>dibatalkan</strong> dan
-          panitia akan diberi tahu. Anda tetap bisa mendaftar ulang nanti.
+          Anda yakin ingin membatalkan kehadiran <strong>seluruh peserta</strong> dalam pendaftaran ini?
+          Status akan diubah menjadi <strong>dibatalkan</strong> dan panitia akan diberi tahu. Anda tetap
+          bisa mendaftar ulang nanti.
         </p>
         <div className="mt-5 flex gap-3">
           <Button variant="outline" fullWidth onClick={() => setConfirmCancel(false)}>

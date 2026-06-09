@@ -68,22 +68,16 @@ export default function HomePage() {
           </Alert>
         )}
 
-        {/* Quota / counter */}
+        {/* Counter */}
         <Card>
-          <div className="grid grid-cols-2 gap-4 text-center sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-4 text-center">
             <div>
-              <p className="text-3xl font-extrabold text-brand-700">{status.total_registered}</p>
-              <p className="text-sm text-slate-500">Keluarga Terdaftar</p>
+              <p className="text-3xl font-extrabold text-brand-700">{status.total_sessions}</p>
+              <p className="text-sm text-slate-500">Pendaftaran Masuk</p>
             </div>
             <div>
               <p className="text-3xl font-extrabold text-brand-700">{status.total_people}</p>
-              <p className="text-sm text-slate-500">Perkiraan Hadir</p>
-            </div>
-            <div className="col-span-2 sm:col-span-1">
-              <p className="text-3xl font-extrabold text-brand-700">
-                {status.capacity ?? '∞'}
-              </p>
-              <p className="text-sm text-slate-500">Kuota Maksimum</p>
+              <p className="text-sm text-slate-500">Total Peserta Hadir</p>
             </div>
           </div>
           {status.deadline && (
@@ -120,10 +114,10 @@ export default function HomePage() {
           <h2 className="text-xl font-bold text-slate-900">Cara Mendaftar</h2>
           <ol className="mt-4 space-y-3">
             {[
-              'Isi formulir pendaftaran dengan data diri Anda.',
-              'Pilih trah / cabang keluarga dan setujui penggunaan data.',
-              'Klik "Daftar" — Anda langsung menerima konfirmasi & kode kehadiran (QR).',
-              'Simpan tautan kelola untuk mengubah atau membatalkan kapan saja.',
+              'Masukkan data peserta beserta Kode SP masing-masing — bisa satu atau beberapa orang.',
+              'Setujui penggunaan data untuk keperluan acara reuni.',
+              'Klik "Daftar" — Anda langsung menerima kode kehadiran (QR) untuk seluruh peserta.',
+              'Simpan tautan kelola untuk mengubah data atau membatalkan kapan saja.',
             ].map((step, i) => (
               <li key={i} className="flex gap-3">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700">

@@ -53,7 +53,7 @@ export default function EventSettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-extrabold text-slate-900">Pengaturan Acara</h1>
-        <p className="text-sm text-slate-500">Atur detail acara, kuota, tenggat, dan buka/tutup pendaftaran.</p>
+        <p className="text-sm text-slate-500">Atur detail acara, tenggat, dan buka/tutup pendaftaran.</p>
       </div>
 
       {saved && <Alert variant="success" title="Tersimpan">Pengaturan acara berhasil diperbarui.</Alert>}
@@ -84,25 +84,14 @@ export default function EventSettingsPage() {
         </Card>
 
         <Card className="space-y-5">
-          <h2 className="text-lg font-bold text-slate-900">Kuota &amp; Pendaftaran</h2>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <Field label="Kuota Maksimum" hint="Kosongkan untuk tanpa batas.">
-              <Input
-                type="number"
-                min={0}
-                value={ev.max_capacity ?? ''}
-                onChange={(e) => patch('max_capacity', e.target.value === '' ? null : Number(e.target.value))}
-                placeholder="Tanpa batas"
-              />
-            </Field>
-            <Field label="Tenggat Pendaftaran" hint="Kosongkan untuk tanpa tenggat.">
-              <Input
-                type="datetime-local"
-                value={toLocalInput(ev.registration_deadline)}
-                onChange={(e) => patch('registration_deadline', fromLocalInput(e.target.value))}
-              />
-            </Field>
-          </div>
+          <h2 className="text-lg font-bold text-slate-900">Pendaftaran</h2>
+          <Field label="Tenggat Pendaftaran" hint="Kosongkan untuk tanpa tenggat. Tidak ada batas kuota peserta.">
+            <Input
+              type="datetime-local"
+              value={toLocalInput(ev.registration_deadline)}
+              onChange={(e) => patch('registration_deadline', fromLocalInput(e.target.value))}
+            />
+          </Field>
 
           <label className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
             <span>
