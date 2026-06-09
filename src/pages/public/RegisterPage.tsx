@@ -16,9 +16,11 @@ import { RegionPicker } from '../../components/RegionPicker';
 interface PRow {
   key: string;
   full_name: string;
+  nickname: string;
   sp_code: string;
   birth_date: string;
   address: string;
+  address_detail: string;
   last_occupation: string;
   accommodation: string;
   email: string;
@@ -34,9 +36,11 @@ function emptyParticipant(): PRow {
   return {
     key: rowKey(),
     full_name: '',
+    nickname: '',
     sp_code: '',
     birth_date: '',
     address: '',
+    address_detail: '',
     last_occupation: '',
     accommodation: '',
     email: '',
@@ -122,9 +126,11 @@ export default function RegisterPage() {
       website,
       participants: participants.map((p) => ({
         full_name: p.full_name,
+        nickname: p.nickname,
         sp_code: p.sp_code,
         birth_date: p.birth_date,
         address: p.address,
+        address_detail: p.address_detail,
         last_occupation: p.last_occupation,
         accommodation: p.accommodation,
         email: p.email,
@@ -217,14 +223,23 @@ export default function RegisterPage() {
                   )}
                 </div>
 
-                <Field label="Nama Lengkap" required error={e.full_name}>
-                  <Input
-                    value={p.full_name}
-                    onChange={(ev) => setParticipant(idx, 'full_name', ev.target.value)}
-                    placeholder="Nama lengkap peserta"
-                    aria-invalid={!!e.full_name}
-                  />
-                </Field>
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <Field label="Nama Lengkap" required error={e.full_name}>
+                    <Input
+                      value={p.full_name}
+                      onChange={(ev) => setParticipant(idx, 'full_name', ev.target.value)}
+                      placeholder="Nama lengkap peserta"
+                      aria-invalid={!!e.full_name}
+                    />
+                  </Field>
+                  <Field label="Nama Panggilan" hint="Opsional">
+                    <Input
+                      value={p.nickname}
+                      onChange={(ev) => setParticipant(idx, 'nickname', ev.target.value)}
+                      placeholder="Mis. Budi, Yuli (opsional)"
+                    />
+                  </Field>
+                </div>
 
                 <Field
                   label="Kode SP"
@@ -255,7 +270,7 @@ export default function RegisterPage() {
                     />
                   </Field>
 
-                  <Field label="Alamat Domisili" required error={e.address} hint="Ketik untuk mencari kecamatan/kota domisili.">
+                  <Field label="Provinsi/Kota/Kecamatan Domisili" required error={e.address} hint="Ketik untuk mencari kecamatan domisili.">
                     <RegionPicker
                       value={p.address}
                       onChange={(v) => setParticipant(idx, 'address', v)}
@@ -264,6 +279,14 @@ export default function RegisterPage() {
                     />
                   </Field>
                 </div>
+
+                <Field label="Alamat Lengkap Domisili" hint="Opsional — nama jalan, RT/RW, nomor rumah, dll.">
+                  <Input
+                    value={p.address_detail}
+                    onChange={(ev) => setParticipant(idx, 'address_detail', ev.target.value)}
+                    placeholder="Mis. Jl. Mawar No. 5, RT 02/RW 03 (opsional)"
+                  />
+                </Field>
 
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <Field label="Pekerjaan Terakhir" hint="Opsional">

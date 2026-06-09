@@ -31,8 +31,7 @@ export default function HomePage() {
             {event.event_name}
           </h1>
           <p className="mt-4 max-w-xl text-lg text-brand-50">
-            Satukan kembali keluarga besar Soero Pramono. Daftarkan kehadiran Anda — cukup lewat HP,
-            mudah untuk semua usia.
+            {event.tagline}
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3 text-sm">
@@ -44,19 +43,13 @@ export default function HomePage() {
             </span>
           </div>
 
-          <div className="mt-8">
-            {status.open ? (
-              <Link to="/daftar">
-                <Button size="lg" variant="secondary" className="!bg-white !text-brand-700 hover:!bg-brand-50">
-                  Daftar Sekarang →
-                </Button>
-              </Link>
-            ) : (
+          {!status.open && (
+            <div className="mt-8">
               <span className="inline-block rounded-2xl bg-white/15 px-6 py-4 text-lg font-semibold">
                 Pendaftaran Ditutup
               </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </section>
 

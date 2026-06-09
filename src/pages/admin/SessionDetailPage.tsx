@@ -30,9 +30,11 @@ type PErrors = Partial<Record<keyof ParticipantInput, string>>;
 function emptyPForm(): ParticipantInput {
   return {
     full_name: '',
+    nickname: '',
     sp_code: '',
     birth_date: '',
     address: '',
+    address_detail: '',
     last_occupation: '',
     accommodation: '',
     email: '',
@@ -87,9 +89,11 @@ export default function SessionDetailPage() {
     setPEditing(p);
     setPForm({
       full_name: p.full_name,
+      nickname: p.nickname,
       sp_code: p.sp_code,
       birth_date: p.birth_date,
       address: p.address,
+      address_detail: p.address_detail,
       last_occupation: p.last_occupation,
       accommodation: p.accommodation,
       email: p.email ?? '',
@@ -120,9 +124,11 @@ export default function SessionDetailPage() {
       if (pEditing) {
         await updateParticipant(pEditing.id, {
           full_name: pForm.full_name.trim(),
+          nickname: pForm.nickname?.trim() ?? '',
           sp_code: pForm.sp_code,
           birth_date: pForm.birth_date.trim(),
           address: pForm.address.trim(),
+          address_detail: pForm.address_detail?.trim() ?? '',
           last_occupation: pForm.last_occupation?.trim() ?? '',
           accommodation: pForm.accommodation?.trim() ?? '',
           email: pForm.email?.trim().toLowerCase() || null,
@@ -214,9 +220,11 @@ export default function SessionDetailPage() {
                         {p.is_checked_in && <Badge color="blue">Check-in</Badge>}
                       </div>
                       <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+                        {p.nickname && <Row label="Nama Panggilan" value={p.nickname} />}
                         <Row label="Tanggal Lahir" value={formatBirthDate(p.birth_date)} />
                         <Row label="Umur" value={calculateAge(p.birth_date) != null ? `${calculateAge(p.birth_date)} tahun` : '-'} />
-                        <Row label="Alamat" value={p.address} />
+                        <Row label="Kecamatan/Kota" value={p.address} />
+                        {p.address_detail && <Row label="Alamat Lengkap" value={p.address_detail} />}
                         <Row label="Pekerjaan" value={p.last_occupation || '-'} />
                         <Row label="Menginap" value={p.accommodation || '-'} />
                         <Row label="Email" value={p.email || '-'} />
@@ -285,9 +293,14 @@ export default function SessionDetailPage() {
       {/* Participant editor */}
       <Modal open={pOpen} onClose={() => setPOpen(false)} title={pEditing ? 'Edit Peserta' : 'Tambah Peserta'}>
         <div className="space-y-4">
-          <Field label="Nama Lengkap" required error={pErrors.full_name}>
-            <Input value={pForm.full_name} onChange={(e) => setPForm({ ...pForm, full_name: e.target.value })} aria-invalid={!!pErrors.full_name} />
-          </Field>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Nama Lengkap" required error={pErrors.full_name}>
+              <Input value={pForm.full_name} onChange={(e) => setPForm({ ...pForm, full_name: e.target.value })} aria-invalid={!!pErrors.full_name} />
+            </Field>
+            <Field label="Nama Panggilan" hint="Opsional">
+              <Input value={pForm.nickname ?? ''} onChange={(e) => setPForm({ ...pForm, nickname: e.target.value })} placeholder="Mis. Budi (opsional)" />
+            </Field>
+          </div>
           <Field label="Kode SP" required error={pErrors.sp_code} hint={SP_CODE_HINT}>
             <Input value={pForm.sp_code} onChange={(e) => setPForm({ ...pForm, sp_code: e.target.value })} aria-invalid={!!pErrors.sp_code} className="font-mono uppercase" />
           </Field>
@@ -295,10 +308,13 @@ export default function SessionDetailPage() {
             <Field label="Tanggal Lahir" required error={pErrors.birth_date}>
               <DatePicker value={pForm.birth_date} onChange={(v) => setPForm({ ...pForm, birth_date: v })} max={todayStr} ariaInvalid={!!pErrors.birth_date} />
             </Field>
-            <Field label="Alamat Domisili" required error={pErrors.address}>
+            <Field label="Provinsi/Kota/Kecamatan Domisili" required error={pErrors.address}>
               <RegionPicker value={pForm.address} onChange={(v) => setPForm({ ...pForm, address: v })} ariaInvalid={!!pErrors.address} idPrefix="reg-detail" />
             </Field>
           </div>
+          <Field label="Alamat Lengkap Domisili" hint="Opsional — nama jalan, RT/RW, nomor rumah, dll.">
+            <Input value={pForm.address_detail ?? ''} onChange={(e) => setPForm({ ...pForm, address_detail: e.target.value })} placeholder="Mis. Jl. Mawar No. 5, RT 02/RW 03 (opsional)" />
+          </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Pekerjaan Terakhir" hint="Opsional">
               <Input value={pForm.last_occupation ?? ''} onChange={(e) => setPForm({ ...pForm, last_occupation: e.target.value })} />

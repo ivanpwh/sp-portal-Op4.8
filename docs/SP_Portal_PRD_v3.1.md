@@ -67,9 +67,11 @@ Setiap individu yang didaftarkan. Satu sesi bisa memiliki banyak peserta.
 | `id` | string | — | UUID |
 | `session_id` | string | — | FK ke `RegistrationSession` |
 | `full_name` | string | ✅ | Nama lengkap |
+| `nickname` | string | ➖ | Nama panggilan — **opsional** |
 | `sp_code` | string | ✅ | Kode SP |
 | `birth_date` | string (ISO `YYYY-MM-DD`) | ✅ | Tanggal lahir via datepicker (Flowbite). **Umur dihitung otomatis** di sisi panitia — tidak diinput |
-| `address` | string | ✅ | Domisili — dipilih dari **satu kotak pencarian** kecamatan se-Indonesia; tersimpan sebagai gabungan "Provinsi, Kabupaten/Kota, Kecamatan" |
+| `address` | string | ✅ | Region domisili — dipilih dari **satu kotak pencarian** kecamatan se-Indonesia; tersimpan sebagai gabungan "Provinsi, Kabupaten/Kota, Kecamatan" |
+| `address_detail` | string | ➖ | Alamat lengkap bebas (nama jalan, RT/RW, dll.) — **opsional** |
 | `last_occupation` | string | ➖ | Pekerjaan terakhir — **opsional (v3.1)** |
 | `accommodation` | string | ➖ | Rencana lokasi menginap — **opsional (v3.1)** |
 | `email` | string\|null | ➖ | Email (opsional) |
@@ -99,10 +101,10 @@ Setiap individu yang didaftarkan. Satu sesi bisa memiliki banyak peserta.
 ## 4. Fitur — Area Publik (Peserta)
 
 ### 4.1 Halaman Utama
-- Tampilkan info acara: nama, tanggal, lokasi, peta (embed Google Maps).
+- Tampilkan info acara: nama, tagline, tanggal, lokasi, peta (embed Google Maps).
 - Tampilkan status pendaftaran (buka/tutup, sudah lewat tenggat).
 - Tampilkan jumlah pendaftaran masuk & total peserta hadir.
-- Tombol "Daftar Sekarang".
+- Tombol "Mulai Pendaftaran" (di bagian langkah pendaftaran) untuk membuka form `/daftar`.
 
 ### 4.2 Form Pendaftaran Multi-Orang
 
@@ -111,7 +113,7 @@ Pengguna langsung mengisi daftar peserta — **tanpa bagian Data Pendata**.
 **Daftar Peserta (minimal 1, bisa tambah lebih)**
 
 Setiap peserta mengisi:
-- Nama lengkap *(wajib)*
+- Nama lengkap *(wajib)* + Nama panggilan *(opsional, di samping nama lengkap)*
 - Kode SP *(wajib)* — dengan hint format & contoh
 - Tanggal lahir *(wajib)* — dipilih via **datepicker** (Flowbite), format `YYYY-MM-DD`; umur dihitung otomatis oleh panitia (tidak diinput pengguna)
 - Alamat domisili *(wajib)* — **satu kolom pencarian**: ketik nama kecamatan/kota lalu pilih dari daftar (label "Provinsi, Kabupaten/Kota, Kecamatan", data wilayah Indonesia)
@@ -159,7 +161,7 @@ Diakses melalui tautan unik tanpa login.
 ### 5.4 Tampilan Pengelompokan per SP Induk ⭐
 Halaman khusus (`/admin/pengelompokan`) menampilkan seluruh peserta dikelompokkan berdasarkan **SP Induk**.
 
-**Kolom data per peserta:** Nama, Kode SP, Alamat, Umur/Tanggal Lahir, Pekerjaan Terakhir, Lokasi Menginap, Email, WA/No HP.
+**Kolom data per peserta:** Nama, Nama Panggilan, Kode SP, Alamat, Umur/Tanggal Lahir, Pekerjaan Terakhir, Lokasi Menginap, Email, WA/No HP.
 
 **Fitur:** Expand/collapse per SP Induk; urut dalam grup berdasarkan kode SP; ekspor per SP Induk (CSV) atau ekspor semua; filter tampilkan hanya `will_attend` (default) atau semua.
 
@@ -176,7 +178,7 @@ Halaman khusus (`/admin/pengelompokan`) menampilkan seluruh peserta dikelompokka
 - Cari peserta by nama / kode SP / kode check-in sesi. Toggle status `is_checked_in` per peserta.
 
 ### 5.9 Pengaturan Acara
-- Edit nama acara, tanggal, lokasi, alamat, kata kunci peta, tenggat pendaftaran (opsional). Toggle buka/tutup pendaftaran. (Tanpa Kuota Maksimum.)
+- Edit nama acara, tagline (teks sambutan halaman utama), tanggal, lokasi, alamat, kata kunci peta, tenggat pendaftaran (opsional). Toggle buka/tutup pendaftaran. (Tanpa Kuota Maksimum.)
 
 ### 5.10 Akun Panitia (Super Admin)
 - Tambah/nonaktifkan akun committee. Role: `super_admin` atau `committee`.
@@ -190,7 +192,7 @@ Halaman khusus (`/admin/pengelompokan`) menampilkan seluruh peserta dikelompokka
 | B1 | Kode SP wajib untuk setiap peserta. Format: `SP[angka](.[angka])*[A]?` — case-insensitive. |
 | B2 | SP Induk = token pertama dari kode SP. `SP4.1.3A` → induk = `SP4`. |
 | B3 | Nomor WA (pada peserta yang mengisinya) dinormalisasi ke `62…`. |
-| B4 | Nama, Kode SP, Tanggal Lahir, dan Alamat wajib per peserta. Pekerjaan, Menginap, Email, WA opsional. |
+| B4 | Nama, Kode SP, Tanggal Lahir, dan Provinsi/Kota/Kecamatan Domisili wajib per peserta. Nama Panggilan, Alamat Lengkap, Pekerjaan, Menginap, Email, WA opsional. |
 | B5 | Satu sesi boleh memiliki peserta dari SP Induk berbeda. |
 | B6 | Form publik ditutup jika `registration_open = false` atau `registration_deadline` sudah lewat. |
 | B7 | Persetujuan privasi (`privacy_consent`) wajib `true` untuk menyimpan data (satu centang per pendaftaran). |

@@ -117,9 +117,11 @@ interface Participant {
   id: string;
   session_id: string;
   full_name: string;              // wajib
+  nickname: string;               // OPSIONAL (boleh "")
   sp_code: string;                // wajib (mis. SP4.1.3A)
   birth_date: string;             // wajib, ISO "YYYY-MM-DD" (Flowbite datepicker); umur dihitung
-  address: string;                // wajib; gabungan "Provinsi, Kab/Kota, Kecamatan" via RegionPicker (autocomplete idn-area-data)
+  address: string;                // wajib; region domisili: "Provinsi, Kab/Kota, Kecamatan" via RegionPicker (autocomplete idn-area-data)
+  address_detail: string;         // OPSIONAL (boleh "") — alamat lengkap bebas: jalan, RT/RW, dll.
   last_occupation: string;        // OPSIONAL (boleh "")
   accommodation: string;          // OPSIONAL (boleh "")
   email: string | null;           // opsional
@@ -130,7 +132,7 @@ interface Participant {
 }
 
 interface ParticipantInput {       // payload form
-  full_name: string; sp_code: string; birth_date: string; address: string;
+  full_name: string; nickname?: string; sp_code: string; birth_date: string; address: string; address_detail?: string;
   last_occupation?: string; accommodation?: string; email?: string; whatsapp_number?: string;
 }
 
@@ -144,7 +146,7 @@ interface SessionWithParticipants extends RegistrationSession { participants: Pa
 interface ParticipantWithSession extends Participant { manage_token: string; registered_at: string; }
 
 interface EventSettings {
-  id: string; event_name: string; event_date: string; location: string; address: string;
+  id: string; event_name: string; tagline: string; event_date: string; location: string; address: string;
   maps_query: string; registration_deadline: string | null; registration_open: boolean; updated_at: string;
 }
 
@@ -174,7 +176,7 @@ interface NotificationLog {
 ## 4. Spesifikasi Fungsional — Area Publik
 
 ### 4.1 FR-PUB-01: Halaman Utama (`/`)
-Menampilkan info acara (`getEventSettings`) + status (`getRegistrationStatus`), peta embed, jumlah pendaftaran masuk (`total_sessions`) & total peserta (`total_people`), serta tombol "Daftar Sekarang" bila `open`.
+Menampilkan info acara (`getEventSettings`) + status (`getRegistrationStatus`), peta embed, jumlah pendaftaran masuk (`total_sessions`) & total peserta (`total_people`), serta tombol "Mulai Pendaftaran" (di bagian langkah pendaftaran) bila `open`. Field `tagline` ditampilkan sebagai teks sambutan di bawah nama acara pada hero section.
 
 ### 4.2 FR-PUB-02: Form Pendaftaran (`/daftar`)
 **Guard:** jika tutup/deadline lewat → halaman "Pendaftaran Ditutup".

@@ -90,6 +90,7 @@ function seed(): void {
   const event: EventSettings = {
     id: uid(),
     event_name: 'Reuni Akbar Keluarga Soero Pramono 2026',
+    tagline: 'Satukan kembali keluarga besar Soero Pramono. Guyub Rukun Saklawase.',
     event_date: '2026-08-17T09:00:00.000Z',
     location: 'Sajian Kembang Turi',
     address: 'Sleman, Yogyakarta',
@@ -135,6 +136,7 @@ function seed(): void {
         sp_code: normalizeSpCode(p.sp_code),
         birth_date: p.birth_date ?? '',
         address: p.address ?? '',
+        address_detail: p.address_detail ?? '',
         last_occupation: p.last_occupation ?? '',
         accommodation: p.accommodation ?? '',
         email: p.email ?? null,
@@ -272,9 +274,11 @@ function buildParticipant(session_id: string, input: ParticipantInput): Particip
     id: uid(),
     session_id,
     full_name: input.full_name.trim(),
+    nickname: input.nickname?.trim() ?? '',
     sp_code: normalizeSpCode(input.sp_code),
     birth_date: input.birth_date.trim(),
     address: input.address.trim(),
+    address_detail: input.address_detail?.trim() ?? '',
     last_occupation: input.last_occupation?.trim() ?? '',
     accommodation: input.accommodation?.trim() ?? '',
     email: input.email?.trim().toLowerCase() || null,
@@ -357,9 +361,11 @@ export async function updateSessionByToken(
         return {
           ...prev,
           full_name: inp.full_name.trim(),
+          nickname: inp.nickname?.trim() ?? '',
           sp_code: normalizeSpCode(inp.sp_code),
           birth_date: inp.birth_date.trim(),
           address: inp.address.trim(),
+          address_detail: inp.address_detail?.trim() ?? '',
           last_occupation: inp.last_occupation?.trim() ?? '',
           accommodation: inp.accommodation?.trim() ?? '',
           email: inp.email?.trim().toLowerCase() || null,
@@ -574,7 +580,7 @@ export function getStats(): Promise<Stats> {
 
 // ----- CSV export (UTF-8 BOM, Excel-ready) ----------------------------------
 const CSV_HEADERS = [
-  'full_name', 'sp_code', 'sp_induk', 'birth_date', 'age', 'address', 'last_occupation',
+  'full_name', 'nickname', 'sp_code', 'sp_induk', 'birth_date', 'age', 'address', 'address_detail', 'last_occupation',
   'accommodation', 'email', 'whatsapp_number',
   'attendance_status', 'is_checked_in', 'checked_in_at', 'registered_at',
 ];

@@ -18,9 +18,11 @@ interface PRow {
   key: string;
   id?: string;
   full_name: string;
+  nickname: string;
   sp_code: string;
   birth_date: string;
   address: string;
+  address_detail: string;
   last_occupation: string;
   accommodation: string;
   email: string;
@@ -37,9 +39,11 @@ function rowsFrom(session: SessionWithParticipants): PRow[] {
     key: p.id,
     id: p.id,
     full_name: p.full_name,
+    nickname: p.nickname,
     sp_code: p.sp_code,
     birth_date: p.birth_date,
     address: p.address,
+    address_detail: p.address_detail ?? '',
     last_occupation: p.last_occupation,
     accommodation: p.accommodation,
     email: p.email ?? '',
@@ -50,9 +54,11 @@ function emptyRow(): PRow {
   return {
     key: rowKey(),
     full_name: '',
+    nickname: '',
     sp_code: '',
     birth_date: '',
     address: '',
+    address_detail: '',
     last_occupation: '',
     accommodation: '',
     email: '',
@@ -137,9 +143,11 @@ export default function ManagePage() {
       participants: rows.map((p) => ({
         id: p.id,
         full_name: p.full_name,
+        nickname: p.nickname,
         sp_code: p.sp_code,
         birth_date: p.birth_date,
         address: p.address,
+        address_detail: p.address_detail,
         last_occupation: p.last_occupation,
         accommodation: p.accommodation,
         email: p.email,
@@ -251,9 +259,14 @@ export default function ManagePage() {
                   )}
                 </div>
 
-                <Field label="Nama Lengkap" required error={e.full_name}>
-                  <Input value={p.full_name} onChange={(ev) => setRow(idx, 'full_name', ev.target.value)} aria-invalid={!!e.full_name} />
-                </Field>
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <Field label="Nama Lengkap" required error={e.full_name}>
+                    <Input value={p.full_name} onChange={(ev) => setRow(idx, 'full_name', ev.target.value)} aria-invalid={!!e.full_name} />
+                  </Field>
+                  <Field label="Nama Panggilan" hint="Opsional">
+                    <Input value={p.nickname} onChange={(ev) => setRow(idx, 'nickname', ev.target.value)} placeholder="Mis. Budi (opsional)" />
+                  </Field>
+                </div>
                 <Field label="Kode SP" required error={e.sp_code} hint={SP_CODE_HINT}>
                   <Input
                     value={p.sp_code}
@@ -266,10 +279,13 @@ export default function ManagePage() {
                   <Field label="Tanggal Lahir" required error={e.birth_date}>
                     <DatePicker value={p.birth_date} onChange={(v) => setRow(idx, 'birth_date', v)} max={todayStr} ariaInvalid={!!e.birth_date} />
                   </Field>
-                  <Field label="Alamat Domisili" required error={e.address} hint="Ketik untuk mencari kecamatan/kota domisili.">
+                  <Field label="Provinsi/Kota/Kecamatan Domisili" required error={e.address} hint="Ketik untuk mencari kecamatan domisili.">
                     <RegionPicker value={p.address} onChange={(v) => setRow(idx, 'address', v)} ariaInvalid={!!e.address} idPrefix={`reg-${p.key}`} />
                   </Field>
                 </div>
+                <Field label="Alamat Lengkap Domisili" hint="Opsional — nama jalan, RT/RW, nomor rumah, dll.">
+                  <Input value={p.address_detail} onChange={(ev) => setRow(idx, 'address_detail', ev.target.value)} placeholder="Mis. Jl. Mawar No. 5, RT 02/RW 03 (opsional)" />
+                </Field>
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <Field label="Pekerjaan Terakhir" hint="Opsional">
                     <Input value={p.last_occupation} onChange={(ev) => setRow(idx, 'last_occupation', ev.target.value)} />

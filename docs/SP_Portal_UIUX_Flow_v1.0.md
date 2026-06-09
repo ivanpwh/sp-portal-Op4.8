@@ -108,7 +108,7 @@ graph TD
 flowchart TD
   A[Beranda] --> B{Pendaftaran dibuka?}
   B -- Tidak --> B1[Tampilkan pesan ditutup]
-  B -- Ya --> C[Klik Daftar Sekarang]
+  B -- Ya --> C[Klik Mulai Pendaftaran]
   C --> D["Isi peserta: Nama*, Kode SP*, Tgl Lahir* (datepicker), Alamat* (cari kecamatan)"]
   D --> E{Tambah peserta?}
   E -- Ya --> D

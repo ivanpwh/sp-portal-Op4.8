@@ -63,6 +63,9 @@ export default function EventSettingsPage() {
           <Field label="Nama Acara" required>
             <Input value={ev.event_name} onChange={(e) => patch('event_name', e.target.value)} />
           </Field>
+          <Field label="Tagline / Deskripsi Singkat" hint="Teks sambutan di bawah nama acara pada halaman utama.">
+            <Textarea value={ev.tagline} onChange={(e) => patch('tagline', e.target.value)} rows={3} />
+          </Field>
           <Field label="Tanggal &amp; Waktu Acara" required>
             <Input
               type="datetime-local"

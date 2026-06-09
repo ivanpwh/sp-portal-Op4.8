@@ -36,9 +36,11 @@ export interface Participant {
   id: string;
   session_id: string;
   full_name: string;
+  nickname: string; // nama panggilan — opsional (boleh kosong)
   sp_code: string; // WAJIB — mis. "SP4.1.3A"
   birth_date: string; // tanggal lahir, atau umur bila tak tahu
-  address: string; // alamat domisili
+  address: string; // region domisili: "Provinsi, Kab/Kota, Kecamatan" via RegionPicker
+  address_detail: string; // alamat lengkap bebas — opsional (boleh kosong)
   last_occupation: string; // opsional (boleh kosong)
   accommodation: string; // rencana lokasi menginap — opsional (boleh kosong)
   email: string | null; // opsional per peserta
@@ -65,9 +67,11 @@ export interface ParticipantWithSession extends Participant {
 
 export interface ParticipantInput {
   full_name: string;
+  nickname?: string; // opsional
   sp_code: string;
   birth_date: string;
   address: string;
+  address_detail?: string; // opsional
   last_occupation?: string; // opsional
   accommodation?: string; // opsional
   email?: string;
@@ -89,6 +93,7 @@ export interface RegistrationInput {
 export interface EventSettings {
   id: string;
   event_name: string;
+  tagline: string;
   event_date: string;
   location: string;
   address: string;
