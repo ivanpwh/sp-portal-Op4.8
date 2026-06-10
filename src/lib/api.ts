@@ -135,6 +135,7 @@ function seed(): void {
         id: uid(),
         session_id: id,
         full_name: p.full_name,
+        nickname: p.nickname ?? '',
         sp_code: normalizeSpCode(p.sp_code),
         birth_date: p.birth_date ?? '',
         address: p.address ?? '',
