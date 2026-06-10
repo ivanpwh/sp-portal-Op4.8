@@ -4,11 +4,12 @@ Kumpulan dokumen perancangan & spesifikasi **SP Portal** (Soero Pramono Reunion 
 
 | Dokumen | Versi | Isi |
 |---------|:---:|-----|
-| [PRD](SP_Portal_PRD_v3.1.md) | 3.1 | Product Requirements — latar belakang, konsep Kode SP, model data, fitur publik & admin, aturan bisnis |
-| [SRS](SP_Portal_SRS_v1.1.md) | 1.1 | Software Requirements — arsitektur, rute, tipe domain, spesifikasi fungsional (FR), kontrak API |
-| [SDD](SP_Portal_SDD_v1.0.md) | 1.0 | System Design — arsitektur lapisan, skema DB (PostgreSQL), desain REST API, struktur backend FastAPI |
-| [UI/UX Flow](SP_Portal_UIUX_Flow_v1.0.md) | 1.1 | Design system, peta navigasi, user flow (Mermaid), wireframe, state komponen, aksesibilitas |
-| [Task Breakdown](SP_Portal_Task_Breakdown_v1.0.md) | 1.0 | WBS — fase, epik, tugas, status, estimasi, dependensi, milestone |
+| [PRD](SP_Portal_PRD_v3.1.md) | 3.2 | Product Requirements — latar belakang, konsep Kode SP, model data, fitur publik & admin, aturan bisnis |
+| [SRS](SP_Portal_SRS_v1.1.md) | 1.2 | Software Requirements — arsitektur, rute, tipe domain, spesifikasi fungsional (FR), kontrak API |
+| [SDD](SP_Portal_SDD_v1.0.md) | 1.1 | System Design — arsitektur lapisan, skema DB (PostgreSQL), desain REST API, struktur backend FastAPI |
+| [UI/UX Flow](SP_Portal_UIUX_Flow_v1.0.md) | 1.2 | Design system, peta navigasi, user flow (Mermaid), wireframe, state komponen, aksesibilitas |
+| [Task Breakdown](SP_Portal_Task_Breakdown_v1.0.md) | 1.1 | WBS — fase, epik, tugas, status, estimasi, dependensi, milestone |
+| [Improvement Plan](IMPROVEMENT_PLAN.md) | — | Rencana peningkatan v3.2: halaman publik `/peserta`, keputusan check-in, analisis fitur, urutan kerja |
 
 ## Ringkasan keputusan produk (terkini)
 
@@ -19,6 +20,8 @@ Kumpulan dokumen perancangan & spesifikasi **SP Portal** (Soero Pramono Reunion 
 - **Alamat Domisili** dipilih lewat **satu kotak pencarian kecamatan** se-Indonesia (autocomplete; label "Provinsi, Kabupaten/Kota, Kecamatan"); data dari `idn-area-data`.
 - **Tanpa kuota** dan **tanpa pencegahan duplikat** (kontrol via tools admin).
 - Identitas sesi di admin diwakili **peserta pertama** (kolom "Perwakilan").
+- **(v3.2)** Halaman publik **Peserta Terdaftar** (`/peserta`): per SP Induk, hanya nama + kode SP + kontak (penuh, `wa.me`); peserta batal disembunyikan.
+- **(v3.2)** **Check-in dipertahankan** (meja registrasi hari-H) dengan perbaikan: limit query kosong, check-in per sesi, hitungan hadir global.
 
 ## Stack ringkas
 

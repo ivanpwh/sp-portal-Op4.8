@@ -7,6 +7,7 @@ import HomePage from './pages/public/HomePage';
 import RegisterPage from './pages/public/RegisterPage';
 import SuccessPage from './pages/public/SuccessPage';
 import ManagePage from './pages/public/ManagePage';
+import ParticipantsPage from './pages/public/ParticipantsPage';
 
 import LoginPage from './pages/admin/LoginPage';
 import DashboardPage from './pages/admin/DashboardPage';
@@ -35,6 +36,7 @@ export default function App() {
       {/* Public area */}
       <Route element={<PublicLayout />}>
         <Route path="/" element={<HomePage />} />
+        <Route path="/peserta" element={<ParticipantsPage />} />
         <Route path="/daftar" element={<RegisterPage />} />
         <Route path="/sukses/:token" element={<SuccessPage />} />
         <Route path="/kelola/:token" element={<ManagePage />} />

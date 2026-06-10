@@ -110,6 +110,25 @@ export default function EventSettingsPage() {
           </label>
         </Card>
 
+        <Card className="space-y-5">
+          <h2 className="text-lg font-bold text-slate-900">Check-in (QR)</h2>
+          <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 p-4">
+            <span>
+              <span className="block font-semibold text-slate-800">Fitur QR Check-in Aktif</span>
+              <span className="block text-sm text-slate-500">
+                Jika dimatikan, kode &amp; QR check-in disembunyikan dari halaman peserta
+                (halaman sukses &amp; kelola). Check-in oleh panitia di area admin tetap berfungsi.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={ev.qr_checkin_enabled !== false}
+              onChange={(e) => patch('qr_checkin_enabled', e.target.checked)}
+              className="h-6 w-6 shrink-0 rounded text-brand-600 focus:ring-brand-500"
+            />
+          </label>
+        </Card>
+
         <Button type="submit" size="lg" loading={saving}>Simpan Pengaturan</Button>
       </form>
     </div>

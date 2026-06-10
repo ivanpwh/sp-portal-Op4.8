@@ -1,11 +1,13 @@
 # SP Portal — UI/UX Flow & Design
 
-**Versi:** 1.1
+**Versi:** 1.2
 **Proyek:** Soero Pramono Reunion Portal
-**Tanggal:** Juni 2026
-**Referensi:** PRD v3.1, SRS v1.1, SDD v1.0
+**Tanggal:** 10 Juni 2026
+**Referensi:** PRD v3.2, SRS v1.2, SDD v1.1, IMPROVEMENT_PLAN.md
 
 > **Perubahan v1.0 → v1.1:** Tanggal lahir memakai **datepicker** (Flowbite, lokal Bahasa Indonesia); **umur dihitung otomatis** (tampil di sisi panitia, tidak diinput pengguna); alamat domisili memakai **satu kotak pencarian kecamatan** (autocomplete) menggantikan teks bebas.
+>
+> **Perubahan v1.1 → v1.2:** Halaman publik **Peserta Terdaftar** (`/peserta`) per SP Induk + tautan nav baru; alur check-in diperbarui (limit query kosong, check-in per sesi, hitungan hadir global).
 
 Dokumen ini menentukan tampilan (design system) dan alur pengguna (user flow) SP Portal — area publik (peserta) dan area panitia (admin).
 
@@ -64,8 +66,10 @@ Dokumen ini menentukan tampilan (design system) dan alur pengguna (user flow) SP
 ```mermaid
 graph TD
   Home["/ Beranda"] --> Daftar["/daftar Form Pendaftaran"]
+  Home --> Peserta["/peserta Peserta Terdaftar (v1.2)"]
   Daftar --> Sukses["/sukses/:token"]
   Sukses --> Kelola["/kelola/:token"]
+  Peserta --> Daftar
   Home --> Login["/admin/login"]
   Login --> Dash["/admin Dashboard"]
   Dash --> Sesi["/admin/sesi/:id Detail Sesi"]
@@ -88,6 +92,7 @@ graph TD
 | Publik | Form Pendaftaran | Input 1..n peserta + persetujuan |
 | Publik | Sukses | Kode/QR check-in + ringkasan peserta + tautan kelola |
 | Publik | Kelola Mandiri | Edit/tambah/hapus peserta, batalkan |
+| Publik | Peserta Terdaftar *(v1.2)* | Daftar peserta per SP Induk: nama, kode SP, kontak |
 | Admin | Login | Autentikasi panitia |
 | Admin | Dashboard | Daftar sesi + filter + ekspor |
 | Admin | Detail Sesi | Kelola peserta dalam satu sesi |
@@ -119,6 +124,20 @@ flowchart TD
   H -- Ya --> I[POST /api/registrations]
   I --> J[Halaman Sukses: QR + kode + daftar peserta]
   J --> K[Simpan tautan Kelola]
+```
+
+### 5.1b Melihat Peserta Terdaftar *(v1.2)*
+```mermaid
+flowchart TD
+  A[Beranda / header nav] --> B[Buka /peserta]
+  B --> C[GET getPublicParticipants]
+  C --> D{Ada peserta?}
+  D -- Tidak --> D1[Pesan: Belum ada peserta terdaftar]
+  D -- Ya --> E[Card per SP Induk - semua terbuka, badge jumlah]
+  E --> F[Cari nama / kode SP]
+  F --> G[Grup kosong disembunyikan]
+  E --> H[Klik WA → wa.me / email → mailto]
+  E --> I[CTA: Daftar Sekarang → /daftar]
 ```
 
 ### 5.2 Kelola Mandiri
@@ -155,15 +174,18 @@ flowchart TD
   D --> P[Akun Panitia - super admin]
 ```
 
-### 6.1 Check-in Hari-H
+### 6.1 Check-in Hari-H *(diperbarui v1.2)*
 ```mermaid
 flowchart LR
-  A[Scan QR / ketik kode/nama/Kode SP] --> B[GET /api/admin/checkin?q=]
+  A[Scan QR / ketik kode/nama/Kode SP] --> B["GET /api/admin/checkin?q= (q kosong → maks 50 + hint)"]
   B --> C[Daftar peserta cocok]
-  C --> D{Sudah hadir?}
+  C --> C1{q = kode sesi SP-XXXXXX?}
+  C1 -- Ya --> C2[Aksi: Check-in semua peserta sesi]
+  C1 -- Tidak --> D{Sudah hadir?}
   D -- Belum --> E[Klik Hadir → checkin]
   D -- Sudah --> F[Klik Batalkan]
   E --> G[Badge Hadir + waktu check-in]
+  G --> H[Stat hadir GLOBAL terpisah dari hasil filter]
 ```
 
 ---
@@ -204,6 +226,28 @@ flowchart LR
 │ …           │                                           │
 └─────────────┴───────────────────────────────────────────┘
 ```
+
+### 7.2b Peserta Terdaftar — publik (mobile, v1.2)
+```
+┌───────────────────────────────┐
+│ Peserta Terdaftar             │
+│ 12 peserta · 4 kelompok       │
+│ [🔍 Cari nama / kode SP]      │
+├───────────────────────────────┤
+│ ▼ SP4  (5 orang)              │
+│  ┌─────────────────────────┐  │
+│  │ Yoso Pramono (Yoso)     │  │
+│  │ SP4 · 📱 0812…(wa.me)   │  │
+│  └─────────────────────────┘  │
+│  │ Yuli Hastuti · SP4A     │  │
+├───────────────────────────────┤
+│ ▶ SP1  (2 orang)              │
+│ ▶ SP2  (3 orang)              │
+├───────────────────────────────┤
+│ [   Daftar Sekarang   ]       │
+└───────────────────────────────┘
+```
+> Hanya nama, kode SP, kontak. Tanpa alamat/umur/token. Peserta batal tidak tampil.
 
 ### 7.3 Pengelompokan SP Induk
 ```
@@ -248,4 +292,11 @@ flowchart LR
 - Tanpa kuota & tanpa pencegahan duplikat (kontrol via tools admin).
 - **Tanggal lahir** via datepicker (Flowbite, lokal id); **umur dihitung otomatis** dan hanya tampil ke panitia (Detail Sesi, Pengelompokan, kolom `age` pada CSV).
 - **Alamat domisili** = satu kotak pencarian kecamatan se-Indonesia (ketik mis. "cih" → hasil bertingkat hanya pada label opsi); tersimpan sebagai "Provinsi, Kabupaten/Kota, Kecamatan".
+
+---
+
+## 11. Ringkasan Keputusan UX v3.2 (per IMPROVEMENT_PLAN.md)
+- **Halaman publik `/peserta`**: transparansi pendaftar sebagai pendorong pendaftaran; hanya nama, kode SP, kontak; kontak tampil **penuh** (keputusan pemilik proyek) sebagai tautan `wa.me`/`mailto`; mobile-first kartu bertumpuk.
+- **Check-in dipertahankan** (meja registrasi hari-H): query kosong dibatasi 50 + hint; aksi check-in satu sesi sekaligus; stat hadir global.
+- Nav publik bertambah: "Peserta" di header `PublicLayout` + tautan/CTA di Beranda.
 ```

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   cancelRegistrationByToken,
+  getEventSettings,
   getSessionByToken,
   shortCode,
   updateSessionByToken,
@@ -71,6 +72,7 @@ export default function ManagePage() {
   const todayStr = new Date().toISOString().slice(0, 10);
   const [session, setSession] = useState<SessionWithParticipants | null>(null);
   const [loading, setLoading] = useState(true);
+  const [qrEnabled, setQrEnabled] = useState(true);
   const [rows, setRows] = useState<PRow[]>([]);
   const [pErrors, setPErrors] = useState<PErrors[]>([]);
   const [saving, setSaving] = useState(false);
@@ -87,10 +89,11 @@ export default function ManagePage() {
   }
 
   useEffect(() => {
-    getSessionByToken(token)
-      .then((s) => {
+    Promise.all([getSessionByToken(token), getEventSettings()])
+      .then(([s, ev]) => {
         if (s) hydrate(s);
         else setSession(null);
+        setQrEnabled(ev.qr_checkin_enabled !== false);
       })
       .finally(() => setLoading(false));
   }, [token]);
@@ -199,11 +202,11 @@ export default function ManagePage() {
     session.participants.every((p) => p.attendance_status === 'cancelled');
 
   return (
-    <div className="container-app py-8">
+    <div className="container-app animate-fade-in-up py-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">Kelola Pendaftaran</h1>
-          <p className="mt-1 text-sm text-slate-500">Kode: {shortCode(session)}</p>
+          {qrEnabled && <p className="mt-1 text-sm text-slate-500">Kode: {shortCode(session)}</p>}
         </div>
         {cancelled ? <Badge color="red">Dibatalkan</Badge> : <Badge color="green">Akan Hadir</Badge>}
       </div>

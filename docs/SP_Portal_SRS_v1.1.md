@@ -1,11 +1,13 @@
 # SP Portal — Software Requirements Specification (SRS)
-**Versi:** 1.1
+**Versi:** 1.2
 **Proyek:** Soero Pramono Reunion Portal
-**Tanggal:** Juni 2026
-**Status:** Selaras dengan implementasi frontend v3.1
-**Referensi PRD:** SP Portal PRD v3.1
+**Tanggal:** 10 Juni 2026
+**Status:** Selaras dengan PRD v3.2 / IMPROVEMENT_PLAN.md
+**Referensi PRD:** SP Portal PRD v3.2
 
 > **Perubahan v1.0 → v1.1:** Model `Registrant` → `RegistrationSession` + `Participant`; tanpa Data Pendata; `last_occupation` & `accommodation` opsional; pencegahan duplikat dihapus; tanpa kuota; halaman & rute baru (Pengelompokan SP Induk, Detail Sesi).
+>
+> **Perubahan v1.1 → v1.2:** Halaman publik Peserta Terdaftar `/peserta` (FR-PUB-06) + tipe `PublicParticipant`/`PublicSpIndukGroup` + `getPublicParticipants()`; perbaikan check-in (FR-ADM-08); check-in dipertahankan per keputusan v3.2.
 
 ---
 
@@ -61,7 +63,7 @@ src/
 │   ├── format.ts                 # normalizeWhatsApp, isValidSpCode, spInduk, compareSpCode, dll
 │   └── constants.ts              # ACCOMMODATION_OPTIONS, SP_CODE_HINT, SP_CODE_EXAMPLES
 └── pages/
-    ├── public/  HomePage, RegisterPage, SuccessPage, ManagePage
+    ├── public/  HomePage, RegisterPage, SuccessPage, ManagePage, ParticipantsPage (v1.2)
     └── admin/   LoginPage, DashboardPage, SessionDetailPage, GroupingPage,
                  StatisticsPage, BroadcastPage, CheckinPage,
                  NotificationLogsPage, EventSettingsPage, CommitteesPage
@@ -75,6 +77,7 @@ src/
 | `/daftar` | `RegisterPage` | — |
 | `/sukses/:token` | `SuccessPage` | — |
 | `/kelola/:token` | `ManagePage` | — |
+| `/peserta` | `ParticipantsPage` *(v1.2)* | — |
 | `/admin/login` | `LoginPage` | — |
 | `/admin` | `DashboardPage` | `RequireAuth` |
 | `/admin/sesi/:id` | `SessionDetailPage` | `RequireAuth` |
@@ -167,6 +170,22 @@ interface NotificationLog {
   channel: 'whatsapp' | 'email'; status: 'sent' | 'failed' | 'dry_run';
   error_message: string | null; created_at: string;
 }
+
+// --- Baru v1.2 (halaman publik /peserta) ---
+// Proyeksi minimal Participant untuk konsumsi publik. TIDAK memuat
+// manage_token, session_id, alamat, tanggal lahir, atau field lain.
+interface PublicParticipant {
+  full_name: string;
+  nickname: string;
+  sp_code: string;
+  whatsapp_number: string | null;
+  email: string | null;
+}
+
+interface PublicSpIndukGroup {
+  induk: string;                    // mis. "SP4"
+  participants: PublicParticipant[];
+}
 ```
 
 > **Dihapus dari v1.0:** `Registrant`, `family_branch`, `group_size`, `group_details`, `max_capacity`, `DuplicateError`, dan field `registrar_*`.
@@ -209,6 +228,22 @@ Kode check-in sesi `shortCode(session)` = `SP-XXXXXX` + QR; daftar peserta + kod
 ### 4.5 FR-PUB-05: Kelola Mandiri (`/kelola/:token`)
 Akses via token. Fitur: edit tiap peserta, tambah/hapus peserta, batalkan kehadiran seluruh sesi (semua peserta → `cancelled`). Validasi sama dengan form daftar. Side effect: log `committee_blast` (WA) saat update/cancel.
 
+### 4.6 FR-PUB-06: Peserta Terdaftar (`/peserta`) *(baru v1.2)*
+
+Halaman publik tanpa login, data via `getPublicParticipants(): Promise<PublicSpIndukGroup[]>`.
+
+| # | Ketentuan |
+|---|-----------|
+| 1 | Hanya peserta `attendance_status = 'will_attend'`. |
+| 2 | Dikelompokkan per SP Induk; grup & anggota terurut `compareSpCode`. |
+| 3 | Field per peserta **hanya**: `full_name`, `nickname`, `sp_code`, `whatsapp_number`, `email`. `manage_token`/`session_id` tidak boleh ada di payload. |
+| 4 | Kontak WA ditampilkan penuh sebagai tautan `https://wa.me/{nomor}`; email sebagai `mailto:`. |
+| 5 | Card collapsible per induk + badge jumlah orang (pola `GroupingPage`); semua grup terbuka saat load. |
+| 6 | Pencarian client-side: nama / kode SP (case-insensitive); grup kosong setelah filter disembunyikan. |
+| 7 | Mobile-first: kartu bertumpuk di <640px, tabel/grid ringkas di layar lebar. |
+| 8 | Tautan masuk: tombol di `HomePage` + item nav di header `PublicLayout`. |
+| 9 | Keadaan kosong: pesan "Belum ada peserta terdaftar." |
+
 ---
 
 ## 5. Spesifikasi Fungsional — Area Admin
@@ -234,8 +269,15 @@ Segmentasi: SP Induk / semua, `onlyAttending`, channel WA/email. Template H-7/H-
 ### 5.7 FR-ADM-07: Log Notifikasi (`/admin/notifikasi`)
 Riwayat + retry (80% sukses simulasi).
 
-### 5.8 FR-ADM-08: Check-in (`/admin/checkin`)
+### 5.8 FR-ADM-08: Check-in (`/admin/checkin`) *(diperbarui v1.2 — fitur dipertahankan)*
 Cari peserta by nama/kode SP/kode check-in. Toggle `is_checked_in` per peserta.
+
+Perbaikan v1.2:
+| # | Ketentuan |
+|---|-----------|
+| 1 | Query kosong: tampilkan maks. 50 peserta + hint "ketik untuk mencari"; jangan render seluruh dataset. |
+| 2 | Bila query cocok persis dengan `shortCode` sesi (`SP-XXXXXX`): tampilkan aksi "✓ Check-in semua peserta sesi ini" yang menandai semua peserta `will_attend` dalam sesi tersebut. |
+| 3 | Stat "Sudah Hadir" menampilkan jumlah hadir **global** (dari seluruh peserta), terpisah dari jumlah hasil filter. |
 
 ### 5.9 FR-ADM-09: Pengaturan Acara (`/admin/pengaturan`)
 Edit nama/tanggal/lokasi/alamat/maps_query/deadline, toggle buka-tutup. Tanpa kuota.
@@ -265,6 +307,7 @@ List, tambah, aktif/nonaktif committee.
 | `getSessionByToken(token)` | `/api/registrations/token/{token}` | GET |
 | `updateSessionByToken(token, patch)` | `/api/registrations/token/{token}` | PATCH |
 | `cancelRegistrationByToken(token)` | `/api/registrations/token/{token}/cancel` | POST |
+| `getPublicParticipants()` *(v1.2)* | `/api/participants/public` | GET |
 
 ### Admin (JWT)
 | Fungsi Mock | Endpoint | Method |

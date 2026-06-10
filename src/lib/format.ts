@@ -13,6 +13,21 @@ export function isValidWhatsApp(raw: string): boolean {
   return /^62\d{8,13}$/.test(n);
 }
 
+// Samarkan nomor WhatsApp untuk tampilan publik (data sensitif).
+// Hanya menyisakan kode negara, 3 digit awal, dan 3 digit akhir.
+// Contoh: "6281234567890" → "+62 812-•••••-890".
+export function maskWhatsApp(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const digits = String(raw).replace(/\D/g, '');
+  if (digits.length < 7) return digits ? '•'.repeat(digits.length) : '';
+  const cc = digits.slice(0, 2); // kode negara (mis. 62)
+  const rest = digits.slice(2);
+  const prefix = rest.slice(0, 3);
+  const last = rest.slice(-3);
+  const hidden = Math.max(2, rest.length - prefix.length - last.length);
+  return `+${cc} ${prefix}-${'•'.repeat(hidden)}-${last}`;
+}
+
 export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }

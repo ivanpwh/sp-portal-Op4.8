@@ -1,10 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import Lottie from 'lottie-react';
 import { getEventSettings, getSessionByToken, shortCode } from '../../lib/api';
 import type { EventSettings, SessionWithParticipants } from '../../types';
 import { formatDateTime } from '../../lib/format';
-import { Alert, Badge, Button, Card, PageLoader } from '../../components/ui';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  PageLoader,
+  SafeBoundary,
+  usePrefersReducedMotion,
+} from '../../components/ui';
+import celebration from '../../assets/celebration.json';
 
 export default function SuccessPage() {
   const { token = '' } = useParams();
@@ -12,6 +22,7 @@ export default function SuccessPage() {
   const [event, setEvent] = useState<EventSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const reduceMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     Promise.all([getSessionByToken(token), getEventSettings()])
@@ -51,33 +62,56 @@ export default function SuccessPage() {
   return (
     <div className="container-app py-8">
       {/* Hero confirmation */}
-      <div className="mb-6 text-center">
-        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-brand-100">
-          <svg className="h-12 w-12 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-          </svg>
+      <div className="relative mb-6 overflow-hidden pt-2 text-center animate-fade-in-up">
+        {/* Animasi konfeti perayaan (Lottie) — hanya bila pengguna tidak meminta kurangi gerakan.
+            Dibatasi di dalam area hero (overflow-hidden) agar tidak menutupi kartu di bawahnya. */}
+        {!reduceMotion && (
+          <SafeBoundary>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 z-0 mx-auto w-full max-w-md"
+            >
+              <Lottie animationData={celebration} loop={false} className="h-full w-full" />
+            </div>
+          </SafeBoundary>
+        )}
+
+        <div className="relative z-10">
+          <div className="relative mx-auto mb-4 flex h-20 w-20 items-center justify-center">
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 rounded-full bg-brand-300 animate-pulse-ring"
+            />
+            <span className="relative flex h-20 w-20 animate-pop-in items-center justify-center rounded-full bg-brand-100 shadow-sm">
+              <svg className="h-12 w-12 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </span>
+          </div>
+          <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Terima Kasih, {firstName}!</h1>
+          <p className="mt-2 text-slate-600">
+            Pendaftaran untuk <strong>{session.participants.length} peserta</strong> berhasil tercatat.
+            Sampai jumpa di acara! 🎉
+          </p>
         </div>
-        <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Terima Kasih, {firstName}!</h1>
-        <p className="mt-2 text-slate-600">
-          Pendaftaran untuk <strong>{session.participants.length} peserta</strong> berhasil tercatat.
-          Sampai jumpa di acara! 🎉
-        </p>
       </div>
 
-      {/* QR / check-in code */}
-      <Card className="mb-5 text-center">
-        <p className="text-sm font-semibold text-slate-500">Kode Check-in Pendaftaran</p>
-        <p className="mt-1 text-2xl font-extrabold tracking-wider text-brand-700">{code}</p>
-        <div className="mt-4 inline-block rounded-2xl border border-slate-200 bg-white p-4">
-          <QRCodeSVG value={code} size={180} level="M" />
-        </div>
-        <p className="mt-3 text-sm text-slate-500">
-          Tunjukkan QR / kode ini kepada panitia saat tiba untuk check-in seluruh peserta.
-        </p>
-      </Card>
+      {/* QR / check-in code — hanya bila fitur QR check-in diaktifkan panitia */}
+      {event?.qr_checkin_enabled !== false && (
+        <Card className="mb-5 animate-fade-in-up stagger-1 text-center">
+          <p className="text-sm font-semibold text-slate-500">Kode Check-in Pendaftaran</p>
+          <p className="mt-1 text-2xl font-extrabold tracking-wider text-brand-700">{code}</p>
+          <div className="mt-4 inline-block rounded-2xl border border-slate-200 bg-white p-4">
+            <QRCodeSVG value={code} size={180} level="M" />
+          </div>
+          <p className="mt-3 text-sm text-slate-500">
+            Tunjukkan QR / kode ini kepada panitia saat tiba untuk check-in seluruh peserta.
+          </p>
+        </Card>
+      )}
 
       {/* Participants */}
-      <Card className="mb-5">
+      <Card className="mb-5 animate-fade-in-up stagger-2">
         <h2 className="text-lg font-bold text-slate-900">Peserta Terdaftar</h2>
         <ul className="mt-3 divide-y divide-slate-100">
           {session.participants.map((p) => (
@@ -94,7 +128,7 @@ export default function SuccessPage() {
 
       {/* Event details */}
       {event && (
-        <Card className="mb-5">
+        <Card className="mb-5 animate-fade-in-up stagger-3">
           <h2 className="text-lg font-bold text-slate-900">Detail Acara</h2>
           <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between gap-4">
@@ -118,7 +152,7 @@ export default function SuccessPage() {
       )}
 
       {/* Manage link */}
-      <Card className="mb-5 bg-brand-50">
+      <Card className="mb-5 animate-fade-in-up stagger-4 bg-brand-50">
         <h2 className="text-lg font-bold text-slate-900">Kelola Pendaftaran</h2>
         <p className="mt-1 text-sm text-slate-600">
           Simpan tautan ini. Anda bisa mengubah data, menambah/menghapus peserta, atau membatalkan

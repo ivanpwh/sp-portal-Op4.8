@@ -17,6 +17,7 @@ import type {
   Participant,
   ParticipantInput,
   ParticipantWithSession,
+  PublicSpIndukGroup,
   RegistrationInput,
   RegistrationSession,
   RegistrationStatus,
@@ -97,6 +98,7 @@ function seed(): void {
     maps_query: 'Sajian Kembang Turi',
     registration_deadline: '2026-08-01T16:59:00.000Z',
     registration_open: true,
+    qr_checkin_enabled: true,
     updated_at: nowISO(),
   };
 
@@ -228,7 +230,10 @@ function logNotification(
 // ===========================================================================
 
 export function getEventSettings(): Promise<EventSettings> {
-  return delay(read<EventSettings>(LS.event, {} as EventSettings));
+  const ev = read<EventSettings>(LS.event, {} as EventSettings);
+  // Kompatibilitas data lama: fitur QR check-in dianggap aktif bila belum diset.
+  if (ev.qr_checkin_enabled === undefined) ev.qr_checkin_enabled = true;
+  return delay(ev);
 }
 
 export function getRegistrationStatus(): Promise<RegistrationStatus> {
@@ -478,6 +483,24 @@ export async function checkInParticipant(id: string, value = true): Promise<Part
   return updateParticipant(id, { is_checked_in: value, checked_in_at: value ? nowISO() : null });
 }
 
+// Check in (or undo) every attending participant of one session at once — used
+// when a session check-in code (SP-XXXXXX) is scanned at the desk. Cancelled
+// participants are skipped. Returns how many rows were affected. Mirrors
+// POST /api/sessions/{id}/checkin-all on the backend.
+export async function checkInSession(session_id: string, value = true): Promise<number> {
+  const all = read<Participant[]>(LS.participants, []);
+  let count = 0;
+  for (const p of all) {
+    if (p.session_id === session_id && p.attendance_status !== 'cancelled') {
+      p.is_checked_in = value;
+      p.checked_in_at = value ? nowISO() : null;
+      count += 1;
+    }
+  }
+  write(LS.participants, all);
+  return delay(count, 250);
+}
+
 export async function setParticipantStatus(
   id: string,
   status: Participant['attendance_status'],
@@ -541,6 +564,26 @@ export function getGroupedBySpInduk(opts: { onlyAttending?: boolean } = {}): Pro
     }))
     .sort((a, b) => compareSpCode(a.induk, b.induk));
   return delay(result);
+}
+
+// ----- public participants view (FR-PUB-06) ---------------------------------
+// Public, no-login list grouped per SP Induk. Derived from
+// getGroupedBySpInduk({ onlyAttending: true }) but mapped down to ONLY the
+// fields the public page may show — name, SP code, contact. Tokens, session IDs,
+// addresses, birth dates, etc. are intentionally dropped here so they can never
+// reach the public view. Mirrors GET /api/participants/public on the backend.
+export async function getPublicParticipants(): Promise<PublicSpIndukGroup[]> {
+  const groups = await getGroupedBySpInduk({ onlyAttending: true });
+  return groups.map((g) => ({
+    induk: g.induk,
+    participants: g.participants.map((p) => ({
+      full_name: p.full_name,
+      nickname: p.nickname,
+      sp_code: p.sp_code,
+      whatsapp_number: p.whatsapp_number,
+      email: p.email,
+    })),
+  }));
 }
 
 // ----- stats ----------------------------------------------------------------
@@ -710,4 +753,81 @@ export async function setCommitteeActive(id: string, active: boolean): Promise<C
   committees[idx] = { ...committees[idx], is_active: active };
   write(LS.committees, committees);
   return delay(committees[idx]);
+}
+
+export async function updateCommittee(
+  id: string,
+  patch: { name?: string; email?: string; role?: Committee['role']; password?: string },
+): Promise<Committee> {
+  const committees = read<Committee[]>(LS.committees, []);
+  const idx = committees.findIndex((c) => c.id === id);
+  if (idx < 0) throw new Error('Akun tidak ditemukan.');
+  const cur = committees[idx];
+
+  const nextEmail =
+    patch.email !== undefined ? patch.email.trim().toLowerCase() : cur.email;
+  if (
+    nextEmail !== cur.email &&
+    committees.some((c) => c.id !== id && c.email.toLowerCase() === nextEmail)
+  ) {
+    throw new Error('Email panitia sudah digunakan.');
+  }
+
+  // Jangan biarkan Super Admin terakhir diturunkan perannya (cegah terkunci).
+  if (cur.role === 'super_admin' && patch.role && patch.role !== 'super_admin') {
+    const otherSupers = committees.filter((c) => c.id !== id && c.role === 'super_admin');
+    if (otherSupers.length === 0) throw new Error('Minimal harus ada satu Super Admin.');
+  }
+
+  const next: Committee = {
+    ...cur,
+    name: patch.name !== undefined ? patch.name.trim() : cur.name,
+    email: nextEmail,
+    role: patch.role ?? cur.role,
+  };
+  committees[idx] = next;
+  write(LS.committees, committees);
+
+  // Kata sandi disimpan ber-key email — migrasikan bila email berubah.
+  const pws = read<Record<string, string>>(LS.passwords, {});
+  if (nextEmail !== cur.email) {
+    if (cur.email in pws) {
+      pws[nextEmail] = pws[cur.email];
+      delete pws[cur.email];
+    }
+  }
+  if (patch.password) pws[nextEmail] = patch.password;
+  write(LS.passwords, pws);
+
+  // Bila akun yang diedit adalah yang sedang login, sinkronkan sesi auth.
+  const sess = read<Session | null>(LS.session, null);
+  if (sess && sess.committee.id === id) {
+    write(LS.session, { ...sess, committee: next });
+  }
+
+  return delay(next);
+}
+
+export async function deleteCommittee(id: string): Promise<{ id: string }> {
+  const committees = read<Committee[]>(LS.committees, []);
+  const target = committees.find((c) => c.id === id);
+  if (!target) throw new Error('Akun tidak ditemukan.');
+
+  // Jangan hapus Super Admin terakhir (cegah terkunci dari panel admin).
+  if (target.role === 'super_admin') {
+    const otherSupers = committees.filter((c) => c.id !== id && c.role === 'super_admin');
+    if (otherSupers.length === 0) {
+      throw new Error('Tidak dapat menghapus satu-satunya Super Admin.');
+    }
+  }
+
+  write(LS.committees, committees.filter((c) => c.id !== id));
+
+  const pws = read<Record<string, string>>(LS.passwords, {});
+  if (target.email in pws) {
+    delete pws[target.email];
+    write(LS.passwords, pws);
+  }
+
+  return delay({ id });
 }

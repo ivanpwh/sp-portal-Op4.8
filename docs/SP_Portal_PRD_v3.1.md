@@ -1,9 +1,10 @@
 # SP Portal — Product Requirements Document (PRD)
-**Versi:** 3.1
+**Versi:** 3.2
 **Proyek:** Soero Pramono Reunion Portal
-**Terakhir diperbarui:** Juni 2026
+**Terakhir diperbarui:** 10 Juni 2026
 **Status:** Aktif
 **Perubahan utama v3.0 → v3.1:** Menghilangkan konsep "Data Pendata" (peserta diinput langsung); Pekerjaan Terakhir & Rencana Lokasi Menginap menjadi opsional; pencegahan duplikat otomatis dihapus.
+**Perubahan utama v3.1 → v3.2 (per `IMPROVEMENT_PLAN.md`):** Halaman publik "Peserta Terdaftar" (`/peserta`) dikelompokkan per SP Induk; fitur check-in dipertahankan dengan tiga perbaikan kecil; backlog pemulihan tautan kelola via WA.
 
 ---
 
@@ -143,6 +144,20 @@ Diakses melalui tautan unik tanpa login.
 - Tambah/hapus peserta dari sesi.
 - Batalkan kehadiran seluruh sesi.
 
+### 4.5 Halaman Peserta Terdaftar (`/peserta`) ⭐ *(baru v3.2)*
+
+Halaman publik tanpa login yang menampilkan peserta terdaftar, dikelompokkan per **SP Induk** — transparansi "siapa saja yang sudah daftar" sebagai pendorong pendaftaran.
+
+- **Data per peserta (hanya ini):** Nama (+ panggilan), Kode SP, Kontak (WA penuh sebagai tautan `wa.me/62…`, atau email).
+- Peserta berstatus `cancelled` **tidak** ditampilkan.
+- Card collapsible per SP Induk (pola `GroupingPage`) + badge jumlah orang; urut `compareSpCode`.
+- Pencarian berdasarkan nama / kode SP.
+- Mobile-first: kartu bertumpuk di layar kecil, bukan tabel lebar.
+- Tautan masuk dari Halaman Utama dan header `PublicLayout`.
+- **Tidak boleh** membocorkan `manage_token`, `session_id`, atau field lain di luar daftar di atas.
+
+> Keputusan privasi (pemilik proyek): kontak ditampilkan penuh. Mitigasi opsional bila diperlukan kelak: tombol "tampilkan kontak" per baris, atau masking.
+
 ---
 
 ## 5. Fitur — Area Panitia (Admin)
@@ -174,8 +189,12 @@ Halaman khusus (`/admin/pengelompokan`) menampilkan seluruh peserta dikelompokka
 ### 5.7 Log Notifikasi
 - Riwayat pengiriman. Status: `sent` / `failed` / `dry_run`. Retry untuk yang gagal.
 
-### 5.8 Check-in Hari-H
+### 5.8 Check-in Hari-H *(dipertahankan — keputusan v3.2)*
 - Cari peserta by nama / kode SP / kode check-in sesi. Toggle status `is_checked_in` per peserta.
+- **Perbaikan v3.2:**
+  - Query kosong dibatasi tampil maks. 50 peserta + pesan "ketik untuk mencari".
+  - Bila query cocok dengan kode sesi (`SP-XXXXXX`): aksi "Check-in semua peserta sesi ini".
+  - Tampilkan jumlah hadir **global** (bukan hanya dari hasil filter).
 
 ### 5.9 Pengaturan Acara
 - Edit nama acara, tagline (teks sambutan halaman utama), tanggal, lokasi, alamat, kata kunci peta, tenggat pendaftaran (opsional). Toggle buka/tutup pendaftaran. (Tanpa Kuota Maksimum.)
@@ -198,6 +217,7 @@ Halaman khusus (`/admin/pengelompokan`) menampilkan seluruh peserta dikelompokka
 | B7 | Persetujuan privasi (`privacy_consent`) wajib `true` untuk menyimpan data (satu centang per pendaftaran). |
 | B8 | Tidak ada batas kuota peserta. |
 | B9 | Tidak ada pencegahan duplikat otomatis (dihapus di v3.1). |
+| B10 | Halaman publik `/peserta` hanya memuat nama, nama panggilan, kode SP, dan kontak; peserta `cancelled` disembunyikan; token/ID sesi tidak pernah dikirim ke view publik. *(v3.2)* |
 
 ---
 
@@ -249,3 +269,14 @@ Algoritma: (1) Hapus karakter non-digit/format; (2) jika diawali `0` → ganti `
 | ❌ Dihapus: Pencegahan duplikat | Tidak ada lagi `DuplicateError`/cek WA-email pendata |
 | 🔄 Identitas sesi di admin | Diwakili oleh peserta pertama (perwakilan) |
 | ✅ Tetap | Kode SP wajib, pengelompokan SP Induk, tanpa kuota, persetujuan privasi |
+
+---
+
+## 11. Catatan Perubahan v3.2 (per IMPROVEMENT_PLAN.md)
+
+| Perubahan | Detail |
+|-----------|--------|
+| ✅ Baru: Halaman publik `/peserta` | Peserta terdaftar per SP Induk; hanya nama, kode SP, kontak (§4.5, B10) |
+| ✅ Keputusan: Check-in dipertahankan | Panitia membuka meja registrasi hari-H; tiga perbaikan kecil (§5.8) |
+| 📋 Backlog: Pemulihan tautan kelola | Cari sesi via nomor WA → kirim ulang token kelola |
+| 📋 Backlog: Backend FastAPI nyata | Ganti isi fungsi `api.ts` dengan `fetch`; tanda tangan fungsi tetap |

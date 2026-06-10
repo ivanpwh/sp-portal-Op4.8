@@ -1,9 +1,11 @@
 # SP Portal — Task Breakdown (WBS)
 
-**Versi:** 1.0
+**Versi:** 1.1
 **Proyek:** Soero Pramono Reunion Portal
-**Tanggal:** Juni 2026
-**Referensi:** PRD v3.1, SRS v1.1, SDD v1.0, UI/UX Flow v1.0
+**Tanggal:** 10 Juni 2026
+**Referensi:** PRD v3.2, SRS v1.2, SDD v1.1, UI/UX Flow v1.1, IMPROVEMENT_PLAN.md
+
+> **Perubahan v1.0 → v1.1:** Fase baru F8 — Peningkatan v3.2 (halaman publik `/peserta`, perbaikan check-in, backlog pemulihan tautan kelola). Check-in dipertahankan per keputusan v3.2.
 
 Work Breakdown Structure untuk SP Portal: fase, epik, tugas, status, estimasi, dependensi, dan kriteria penerimaan.
 
@@ -24,7 +26,8 @@ Work Breakdown Structure untuk SP Portal: fase, epik, tugas, status, estimasi, d
 | F5 | Integrasi Notifikasi (WA/Email) | ⬜ | 4 h |
 | F6 | Integrasi Frontend ↔ Backend | ⬜ | 3 h |
 | F7 | QA, Aksesibilitas, Deploy | ⬜ | 4 h |
-| | **Total** | | **≈ 37 h** |
+| F8 | Peningkatan v3.2 (per IMPROVEMENT_PLAN.md) | ⬜ | 2.5 h |
+| | **Total** | | **≈ 39.5 h** |
 
 ```mermaid
 graph LR
@@ -33,8 +36,10 @@ graph LR
   F1 --> F3[F3 Docs]
   F2 --> F3
   F3 --> F4[F4 Backend]
+  F3 --> F8[F8 Peningkatan v3.2]
   F4 --> F5[F5 Notifikasi]
   F4 --> F6[F6 Integrasi]
+  F8 --> F6
   F5 --> F7[F7 QA & Deploy]
   F6 --> F7
 ```
@@ -42,7 +47,8 @@ graph LR
 **Milestone:**
 - **M1 — Demo mock jalan** (akhir F2): seluruh fitur dapat diperagakan tanpa backend. ✅
 - **M2 — Spesifikasi lengkap** (akhir F3): PRD/SRS/SDD/UI-UX/WBS final. ✅
-- **M3 — Backend siap** (akhir F4): API nyata lulus pengujian kontrak. ⬜
+- **M2.5 — Peningkatan v3.2 di mock** (akhir F8.1–8.2): `/peserta` + perbaikan check-in jalan di mock. ⬜
+- **M3 — Backend siap** (akhir F4): API nyata lulus pengujian kontrak (termasuk `/api/participants/public`). ⬜
 - **M4 — Produksi** (akhir F7): live, terpantau, ter-backup. ⬜
 
 ---
@@ -160,6 +166,36 @@ graph LR
 
 ---
 
+## 9b. F8 — Peningkatan v3.2 (per IMPROVEMENT_PLAN.md) ⬜
+
+**Prioritas:** F8.1 dikerjakan lebih dulu (dampak terbesar); dapat dikerjakan di mock sebelum F4.
+
+### 8.1 Halaman publik Peserta Terdaftar (`/peserta`) — ≈ 1 h
+
+| # | Tugas | Status | Acceptance |
+|---|-------|:---:|-----------|
+| 8.1.1 | Tipe `PublicParticipant` + `PublicSpIndukGroup` di `types.ts` | ⬜ | Hanya 5 field publik; tanpa token/ID |
+| 8.1.2 | `getPublicParticipants()` di `lib/api.ts` | ⬜ | Hanya `will_attend`; urut `compareSpCode`; signature siap backend (`GET /api/participants/public`) |
+| 8.1.3 | `pages/public/ParticipantsPage.tsx` | ⬜ | Card collapsible per induk + badge jumlah; pencarian nama/kode SP; WA sebagai `wa.me`; mobile-first |
+| 8.1.4 | Route `/peserta` di `App.tsx` + nav di `PublicLayout` + tautan di `HomePage` | ⬜ | Terbuka tanpa login |
+| 8.1.5 | Verifikasi: `npm run build` hijau + uji 375px | ⬜ | Kriteria selesai IMPROVEMENT_PLAN §5 |
+
+### 8.2 Perbaikan check-in — ≈ 0.75 h
+
+| # | Tugas | Status | Acceptance |
+|---|-------|:---:|-----------|
+| 8.2.1 | Limit 50 hasil saat query kosong + hint | ⬜ | Tidak render seluruh dataset |
+| 8.2.2 | Aksi "Check-in semua peserta sesi" saat query = `shortCode` | ⬜ | Semua `will_attend` sesi tertandai |
+| 8.2.3 | Stat hadir global terpisah dari hasil filter | ⬜ | Angka konsisten dengan `getStats()` |
+
+### 8.3 Backlog (belum dijadwalkan)
+
+| # | Tugas | Catatan |
+|---|-------|--------|
+| 8.3.1 | Pemulihan tautan kelola via nomor WA | Cari sesi by WA → kirim ulang token (butuh backend nyata/notifikasi) |
+
+---
+
 ## 10. Matriks Dependensi (ringkas)
 
 ```mermaid
@@ -169,6 +205,8 @@ graph TD
   4.7 --> 5.1 --> 5.2 & 5.3 --> 5.4
   4.5 & 4.7 & 4.8 --> 4.10
   4.5 --> 6.1 --> 6.2 --> 6.4
+  8.1[8.1 /peserta] --> 6.1
+  8.2[8.2 Check-in] --> 6.1
   5.4 & 6.4 --> 7.x[QA & Deploy]
 ```
 

@@ -5,20 +5,94 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* Basis 17px — teks lebih besar & nyaman dibaca (aksesibilitas, ramah lansia) */
+    font-size: 106.25%;
   }
   body {
     @apply bg-sand-50 text-slate-800 antialiased;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    line-height: 1.6;
   }
-  /* Larger, comfortable tap targets & readable text by default (aksesibilitas) */
+
+  /*
+   * Latar "gradient mesh" lembut — gumpalan warna hijau & pasir yang
+   * mengambang perlahan di belakang konten. Dua pseudo-element bergerak
+   * di jalur berbeda agar terasa organik, tetapi sangat halus (ramah lansia).
+   * Dimatikan otomatis oleh prefers-reduced-motion (lihat di bawah).
+   */
+  body::before,
+  body::after {
+    content: '';
+    position: fixed;
+    inset: -15%;
+    z-index: -1;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    will-change: transform;
+  }
+  body::before {
+    background-image:
+      radial-gradient(38% 38% at 18% 22%, rgba(34, 197, 94, 0.16), transparent 70%),
+      radial-gradient(34% 34% at 82% 14%, rgba(218, 201, 163, 0.5), transparent 72%);
+    animation: meshDriftA 30s ease-in-out infinite alternate;
+  }
+  body::after {
+    background-image:
+      radial-gradient(42% 42% at 84% 80%, rgba(22, 163, 74, 0.14), transparent 72%),
+      radial-gradient(30% 30% at 12% 88%, rgba(231, 220, 195, 0.55), transparent 72%);
+    animation: meshDriftB 38s ease-in-out infinite alternate;
+  }
+  @keyframes meshDriftA {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    100% {
+      transform: translate3d(3%, 2%, 0) scale(1.08);
+    }
+  }
+  @keyframes meshDriftB {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1.05);
+    }
+    100% {
+      transform: translate3d(-3%, -2%, 0) scale(1);
+    }
+  }
+  /* Target sentuh besar & teks mudah dibaca secara default (aksesibilitas) */
   input,
   select,
   textarea,
   button {
     @apply text-base;
   }
+  h1,
+  h2,
+  h3 {
+    @apply text-slate-900;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  /* Indikator fokus jelas & kontras tinggi untuk navigasi keyboard */
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+    @apply outline-none ring-2 ring-brand-600 ring-offset-2 ring-offset-white;
+  }
+  /* Landmark utama difokuskan via skip-link — tanpa cincin besar mengganggu */
+  main:focus-visible {
+    box-shadow: none;
+  }
+  /* Hormati pengguna yang memilih gerakan minimal */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -27,17 +101,64 @@
     @apply mx-auto w-full max-w-3xl px-4 sm:px-6;
   }
   .field-label {
-    @apply mb-1.5 block text-sm font-semibold text-slate-700;
+    @apply mb-2 block text-base font-semibold text-slate-800;
   }
   .field-hint {
-    @apply mt-1 text-xs text-slate-500;
+    @apply mt-1.5 text-sm text-slate-600;
   }
   .field-error {
-    @apply mt-1 text-sm font-medium text-red-600;
+    @apply mt-1.5 text-sm font-semibold text-red-700;
   }
   .input-base {
-    @apply block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 shadow-sm
-      placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-200
-      disabled:cursor-not-allowed disabled:bg-slate-100;
+    @apply block w-full rounded-xl border border-slate-400 bg-white px-4 py-3 text-base text-slate-900 shadow-sm
+      placeholder:text-slate-500 focus:border-brand-600 focus:ring-2 focus:ring-brand-600 focus:ring-offset-2
+      disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500;
+  }
+  /* Lewati langsung ke konten utama (keyboard & pembaca layar) */
+  .skip-link {
+    @apply absolute left-4 top-3 z-[100] -translate-y-20 rounded-xl bg-brand-700 px-4 py-2.5
+      font-semibold text-white shadow-lg transition-transform focus:translate-y-0;
+  }
+
+  /* Kartu yang bisa di-hover: terangkat halus saat disentuh kursor. */
+  .card-interactive {
+    @apply transition duration-300 ease-out hover:-translate-y-1 hover:shadow-card-hover;
+  }
+
+  /* Placeholder berkilau saat memuat data (skeleton). */
+  .skeleton {
+    @apply rounded-lg bg-slate-200;
+    background-image: linear-gradient(
+      90deg,
+      rgb(226 232 240) 0%,
+      rgb(241 245 249) 50%,
+      rgb(226 232 240) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+}
+
+/*
+ * Penundaan bertahap untuk animasi masuk berurutan (entrance stagger).
+ * Sengaja diletakkan di layer `utilities` (setelah util `animate-*`) agar
+ * `animation-delay` di sini tidak ditimpa oleh shorthand `animation` milik
+ * util tersebut. Tetap dijinakkan oleh aturan prefers-reduced-motion di atas.
+ */
+@layer utilities {
+  .stagger-1 {
+    animation-delay: 80ms;
+  }
+  .stagger-2 {
+    animation-delay: 160ms;
+  }
+  .stagger-3 {
+    animation-delay: 240ms;
+  }
+  .stagger-4 {
+    animation-delay: 320ms;
+  }
+  .stagger-5 {
+    animation-delay: 400ms;
   }
 }

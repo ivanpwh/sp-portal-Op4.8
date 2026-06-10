@@ -100,6 +100,10 @@ export interface EventSettings {
   maps_query: string;
   registration_deadline: string | null; // null = tanpa batas
   registration_open: boolean;
+  // Fitur kode/QR check-in untuk peserta. Bila false, kode & QR check-in
+  // disembunyikan dari halaman publik (sukses & kelola); check-in oleh
+  // panitia di area admin tetap berfungsi. Default: true.
+  qr_checkin_enabled: boolean;
   updated_at: string;
 }
 
@@ -149,4 +153,22 @@ export interface Stats {
 export interface SpIndukGroup {
   induk: string;
   participants: ParticipantWithSession[];
+}
+
+// ---------------------------------------------------------------------------
+// Public participants view (FR-PUB-06) — the only shape exposed without login.
+// Carries the minimum needed fields (name, SP code, contact) and NEVER any
+// token / session ID, so nothing sensitive leaks to the public page.
+// ---------------------------------------------------------------------------
+export interface PublicParticipant {
+  full_name: string;
+  nickname: string;
+  sp_code: string;
+  whatsapp_number: string | null;
+  email: string | null;
+}
+
+export interface PublicSpIndukGroup {
+  induk: string;
+  participants: PublicParticipant[];
 }

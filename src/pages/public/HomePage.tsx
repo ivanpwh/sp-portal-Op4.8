@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { getEventSettings, getRegistrationStatus } from '../../lib/api';
 import type { EventSettings, RegistrationStatus } from '../../types';
 import { formatDateTime, mapsEmbedUrl, mapsUrl } from '../../lib/format';
-import { Alert, Button, Card, PageLoader } from '../../components/ui';
+import { Alert, Button, Card, CountUp, PageLoader } from '../../components/ui';
 
 export default function HomePage() {
   const [event, setEvent] = useState<EventSettings | null>(null);
@@ -24,8 +24,17 @@ export default function HomePage() {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-gradient-to-b from-brand-700 to-brand-600 text-white">
-        <div className="container-app py-12 sm:py-16">
+      <section className="relative overflow-hidden bg-gradient-to-b from-brand-700 to-brand-600 text-white">
+        {/* Ornamen lembut yang mengambang di latar hero */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 animate-float-slow rounded-full bg-white/10 blur-2xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-20 left-1/3 h-48 w-48 animate-float rounded-full bg-brand-400/20 blur-2xl"
+        />
+        <div className="container-app relative animate-fade-in-up py-12 sm:py-16">
           <p className="font-semibold uppercase tracking-wide text-brand-100">Selamat Datang</p>
           <h1 className="mt-2 text-3xl font-extrabold leading-tight sm:text-4xl">
             {event.event_name}
@@ -62,14 +71,18 @@ export default function HomePage() {
         )}
 
         {/* Counter */}
-        <Card>
+        <Card interactive className="animate-fade-in-up stagger-1">
           <div className="grid grid-cols-2 gap-4 text-center">
             <div>
-              <p className="text-3xl font-extrabold text-brand-700">{status.total_sessions}</p>
+              <p className="text-3xl font-extrabold text-brand-700">
+                <CountUp value={status.total_sessions} />
+              </p>
               <p className="text-sm text-slate-500">Pendaftaran Masuk</p>
             </div>
             <div>
-              <p className="text-3xl font-extrabold text-brand-700">{status.total_people}</p>
+              <p className="text-3xl font-extrabold text-brand-700">
+                <CountUp value={status.total_people} />
+              </p>
               <p className="text-sm text-slate-500">Total Peserta Hadir</p>
             </div>
           </div>
@@ -78,10 +91,15 @@ export default function HomePage() {
               Batas pendaftaran: <strong>{formatDateTime(status.deadline)}</strong>
             </p>
           )}
+          <div className="mt-4 text-center">
+            <Link to="/peserta" className="text-sm font-semibold text-brand-700 hover:text-brand-800 hover:underline">
+              Lihat daftar peserta terdaftar →
+            </Link>
+          </div>
         </Card>
 
         {/* Location & map */}
-        <Card>
+        <Card interactive className="animate-fade-in-up stagger-2">
           <h2 className="text-xl font-bold text-slate-900">Lokasi Acara</h2>
           <p className="mt-1 text-slate-600">{event.location}</p>
           <p className="text-sm text-slate-500">{event.address}</p>
@@ -103,7 +121,7 @@ export default function HomePage() {
         </Card>
 
         {/* How it works */}
-        <Card>
+        <Card className="animate-fade-in-up stagger-3">
           <h2 className="text-xl font-bold text-slate-900">Cara Mendaftar</h2>
           <ol className="mt-4 space-y-3">
             {[
@@ -112,7 +130,11 @@ export default function HomePage() {
               'Klik "Daftar" — Anda langsung menerima kode kehadiran (QR) untuk seluruh peserta.',
               'Simpan tautan kelola untuk mengubah data atau membatalkan kapan saja.',
             ].map((step, i) => (
-              <li key={i} className="flex gap-3">
+              <li
+                key={i}
+                className="flex animate-fade-in-up gap-3"
+                style={{ animationDelay: `${320 + i * 90}ms` }}
+              >
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-700">
                   {i + 1}
                 </span>

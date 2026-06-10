@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { Logo } from './ui';
@@ -34,13 +34,28 @@ export function AdminLayout() {
 
   const items = NAV.filter((n) => !n.superAdmin || isSuperAdmin);
 
+  // Aksesibilitas drawer mobile: tutup dengan Escape & kunci scroll latar.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
+
   const handleLogout = () => {
     logout();
     navigate('/admin/login');
   };
 
   const SideNav = (
-    <nav className="flex flex-col gap-1">
+    <nav className="flex flex-col gap-1" aria-label="Navigasi admin">
       {items.map((n) => (
         <NavLink
           key={n.to}
@@ -49,7 +64,9 @@ export function AdminLayout() {
           onClick={() => setOpen(false)}
           className={({ isActive }) =>
             `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
-              isActive ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+              isActive
+                ? 'bg-brand-700 text-white shadow-sm'
+                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
             }`
           }
         >
@@ -61,37 +78,40 @@ export function AdminLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
+      <a href="#konten" className="skip-link">
+        Langsung ke konten
+      </a>
       {/* Top bar */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
         <div className="flex h-16 items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
             <button
-              className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
+              className="rounded-lg p-2 text-slate-700 hover:bg-slate-100 lg:hidden"
               onClick={() => setOpen((v) => !v)}
-              aria-label="Menu"
+              aria-label="Menu navigasi"
+              aria-expanded={open}
+              aria-controls="admin-drawer"
             >
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <Link to="/admin" className="text-slate-900">
+            <Link to="/admin" className="rounded-lg text-slate-900" aria-label="SP Portal — Dashboard">
               <Logo />
             </Link>
-            <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500 sm:inline">
+            <span className="hidden rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 sm:inline">
               Admin
             </span>
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold text-slate-800">{committee?.name}</p>
-              <p className="text-xs text-slate-400">
-                {isSuperAdmin ? 'Super Admin' : 'Panitia'}
-              </p>
+              <p className="text-xs text-slate-500">{isSuperAdmin ? 'Super Admin' : 'Panitia'}</p>
             </div>
             <button
               onClick={handleLogout}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              className="rounded-lg border border-slate-400 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100"
             >
               Keluar
             </button>
@@ -108,17 +128,33 @@ export function AdminLayout() {
         {/* Mobile drawer */}
         {open && (
           <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setOpen(false)}>
-            <div className="absolute inset-0 bg-black/40" />
-            <div className="absolute left-0 top-0 h-full w-72 bg-white p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-              <div className="mb-4">
+            <div className="absolute inset-0 bg-black/50" />
+            <div
+              id="admin-drawer"
+              className="absolute left-0 top-0 h-full w-72 bg-white p-4 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Menu navigasi"
+            >
+              <div className="mb-4 flex items-center justify-between">
                 <Logo />
+                <button
+                  onClick={() => setOpen(false)}
+                  className="-mr-1 rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                  aria-label="Tutup menu"
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
               {SideNav}
             </div>
           </div>
         )}
 
-        <main className="min-w-0 flex-1">
+        <main id="konten" tabIndex={-1} className="min-w-0 flex-1 focus:outline-none">
           <Outlet />
         </main>
       </div>

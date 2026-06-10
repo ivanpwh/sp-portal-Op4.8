@@ -1,9 +1,11 @@
 # SP Portal — System Design Document (SDD)
-**Versi:** 1.0
+**Versi:** 1.1
 **Proyek:** Soero Pramono Reunion Portal
-**Tanggal:** Juni 2026
-**Referensi:** PRD v3.1, SRS v1.1
+**Tanggal:** 10 Juni 2026
+**Referensi:** PRD v3.2, SRS v1.2, IMPROVEMENT_PLAN.md
 **Status:** Acuan desain untuk migrasi mock (localStorage) → backend nyata (FastAPI + PostgreSQL)
+
+> **Perubahan v1.0 → v1.1:** Endpoint publik `/api/participants/public` + proyeksi `PublicParticipant` (halaman `/peserta`); perbaikan desain check-in (limit query kosong, check-in per sesi, hitungan hadir global).
 
 ---
 
@@ -58,9 +60,17 @@ RegisterPage → POST /api/registrations
 
 **Check-in (admin):**
 ```
-CheckinPage → GET /api/admin/checkin?q=... (JWT)
+CheckinPage → GET /api/admin/checkin?q=... (JWT)   [q kosong → limit 50]
   → POST /api/admin/participants/{id}/checkin
   → update is_checked_in + checked_in_at → 200 participant
+  → q cocok shortCode sesi → POST /api/admin/sessions/{id}/checkin-all (v1.1)
+```
+
+**Peserta publik (v1.1):**
+```
+ParticipantsPage (/peserta) → GET /api/participants/public
+  → filter will_attend → proyeksi minimal (nama, panggilan, kode SP, WA, email)
+  → group by sp_induk, urut compareSpCode → 200 PublicSpIndukGroup[]
 ```
 
 ### 2.3 Strategi Migrasi Mock → Nyata
@@ -211,6 +221,21 @@ CREATE INDEX idx_logs_status ON notification_logs(status);
 | GET | `/api/registrations/token/{token}` | `getSessionByToken` | — |
 | PATCH | `/api/registrations/token/{token}` | `updateSessionByToken` | — |
 | POST | `/api/registrations/token/{token}/cancel` | `cancelRegistrationByToken` | — |
+| GET | `/api/participants/public` | `getPublicParticipants` *(v1.1)* | — |
+
+**GET `/api/participants/public`** *(v1.1)* — daftar peserta untuk halaman publik `/peserta`.
+```jsonc
+// 200 Response → PublicSpIndukGroup[]
+[
+  { "induk": "SP4",
+    "participants": [
+      { "full_name": "Yoso Pramono", "nickname": "", "sp_code": "SP4",
+        "whatsapp_number": "6281200000001", "email": null }
+    ] }
+]
+// Aturan server: hanya will_attend; TANPA manage_token/session_id/alamat/tanggal lahir;
+// urut compareSpCode; respons boleh di-cache singkat (mis. 60 dtk).
+```
 
 > PATCH by token menerima `{ participants: [{ id?, … }] }`: id ada → update; tanpa id → tambah; peserta lama yang tidak disertakan → dihapus.
 
@@ -228,7 +253,8 @@ CREATE INDEX idx_logs_status ON notification_logs(status);
 | DELETE | `/api/admin/participants/{id}` | `deleteParticipant` |
 | POST | `/api/admin/participants/{id}/checkin` | `checkInParticipant` |
 | POST | `/api/admin/participants/{id}/status` | `setParticipantStatus` |
-| GET | `/api/admin/checkin?q=` | `findForCheckIn` |
+| GET | `/api/admin/checkin?q=&limit=50` | `findForCheckIn` *(limit v1.1)* |
+| POST | `/api/admin/sessions/{id}/checkin-all` | `checkInSession` *(baru v1.1)* |
 | GET | `/api/admin/grouping?only_attending=` | `getGroupedBySpInduk` |
 | GET | `/api/admin/sp-induk` | `listSpInduk` |
 | GET | `/api/admin/stats` | `getStats` |
@@ -319,4 +345,5 @@ def sp_induk(code: str) -> str:
 | Tanpa cegah duplikat → entri ganda | Sesuai PRD v3.1; sediakan tools admin (hapus peserta/sesi) + pencarian |
 | Gateway WA/email gagal | Fire-and-forget + log + retry; kegagalan tak membatalkan pendaftaran |
 | Token kelola bocor | Entropi tinggi, tanpa data sensitif kritis, bisa di-rotate bila perlu |
+| Kontak WA tampil penuh di `/peserta` → scraping (v1.1) | Keputusan pemilik proyek (PRD §4.5); endpoint hanya memuat proyeksi minimal; mitigasi opsional: rate-limit, masking, atau tombol "tampilkan kontak" |
 ```

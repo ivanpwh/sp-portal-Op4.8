@@ -165,7 +165,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="container-app py-8">
+    <div className="container-app animate-fade-in-up py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Formulir Pendaftaran</h1>
         <p className="mt-1 text-slate-600">
