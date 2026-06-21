@@ -90,8 +90,7 @@ export default function RegisterPage() {
     const pe: PErrors[] = participants.map((p) => {
       const e: PErrors = {};
       if (!p.full_name.trim()) e.full_name = 'Nama lengkap wajib diisi.';
-      if (!p.sp_code.trim()) e.sp_code = 'Kode SP wajib diisi.';
-      else if (!isValidSpCode(p.sp_code)) e.sp_code = 'Format kode SP tidak valid (mis. SP4.1.3A).';
+      if (p.sp_code.trim() && !isValidSpCode(p.sp_code)) e.sp_code = 'Format kode SP tidak valid (mis. SP4.1.3A).';
       if (!p.birth_date.trim()) e.birth_date = 'Tanggal lahir wajib diisi.';
       else if (new Date(p.birth_date) > new Date()) e.birth_date = 'Tanggal lahir tidak boleh di masa depan.';
       if (!p.address.trim()) e.address = 'Pilih kecamatan/kota domisili dari daftar.';
@@ -243,8 +242,8 @@ export default function RegisterPage() {
 
                 <Field
                   label="Kode SP"
-                  required
                   error={e.sp_code}
+                  tooltip="Kosongkan jika Anda tidak mengetahuinya"
                   hint={
                     p.sp_code && isValidSpCode(p.sp_code)
                       ? `Akan disimpan sebagai: ${normalizeSpCode(p.sp_code)}`
