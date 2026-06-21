@@ -54,7 +54,7 @@ export default function GroupingPage() {
             {groups.length} kelompok · {totalPeople} peserta. Dikelompokkan berdasarkan level pertama kode SP.
           </p>
         </div>
-        <Button variant="outline" onClick={() => downloadCsv(exportCsv(), `sp-portal-semua-${today}.csv`)}>
+        <Button variant="outline" onClick={async () => downloadCsv(await exportCsv(), `sp-portal-semua-${today}.csv`)}>
           ⬇ Ekspor Semua CSV
         </Button>
       </div>
@@ -94,7 +94,7 @@ export default function GroupingPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => downloadCsv(exportCsv({ induk: g.induk }), `sp-portal-${g.induk}-${today}.csv`)}
+                  onClick={async () => downloadCsv(await exportCsv({ induk: g.induk }), `sp-portal-${g.induk}-${today}.csv`)}
                 >
                   ⬇ CSV
                 </Button>

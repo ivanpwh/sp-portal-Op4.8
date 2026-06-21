@@ -11,6 +11,9 @@ dist
 dist-ssr
 *.local
 
+# Local environment (frontend mode + API URL). Use .env.example as the template.
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

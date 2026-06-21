@@ -1,0 +1,511 @@
+{
+  "info": {
+    "name": "SP Portal API (v3.2)",
+    "description": "Backend Reuni Keluarga Soero Pramono. Login dulu (folder Auth) untuk mengisi {{token}} otomatis; lalu Submit Registration mengisi {{manage_token}}, {{session_id}}, {{participant_id}}. WhatsApp & Email blasting belum aktif (log-only).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "token", "value": "" },
+    { "key": "manage_token", "value": "" },
+    { "key": "session_id", "value": "" },
+    { "key": "participant_id", "value": "" },
+    { "key": "committee_id", "value": "" },
+    { "key": "log_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Meta",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/health", "host": ["{{base_url}}"], "path": ["api", "health"] }
+          }
+        },
+        {
+          "name": "Root",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/", "host": ["{{base_url}}"], "path": [""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (super admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.token) {",
+                  "  pm.collectionVariables.set('token', j.token);",
+                  "  console.log('Token saved.');",
+                  "}",
+                  "pm.test('status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"email\":\"admin@spportal.id\",\"password\":\"admin123\"}" },
+            "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Me (current committee)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/auth/me", "host": ["{{base_url}}"], "path": ["api", "auth", "me"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": { "raw": "{{base_url}}/api/auth/logout", "host": ["{{base_url}}"], "path": ["api", "auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "Get Event",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/event", "host": ["{{base_url}}"], "path": ["api", "event"] }
+          }
+        },
+        {
+          "name": "Get Registration Status",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/event/status", "host": ["{{base_url}}"], "path": ["api", "event", "status"] }
+          }
+        },
+        {
+          "name": "Submit Registration",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j) {",
+                  "  pm.collectionVariables.set('manage_token', j.manage_token);",
+                  "  pm.collectionVariables.set('session_id', j.id);",
+                  "  if (j.participants && j.participants.length) pm.collectionVariables.set('participant_id', j.participants[0].id);",
+                  "}",
+                  "pm.test('status 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"privacy_consent\":true,\"website\":\"\",\"participants\":[{\"full_name\":\"Budi Santoso\",\"nickname\":\"Budi\",\"sp_code\":\"SP4.2\",\"birth_date\":\"1980-05-17\",\"address\":\"DI Yogyakarta, Sleman, Depok\",\"address_detail\":\"Jl. Kaliurang KM 7\",\"last_occupation\":\"Wiraswasta\",\"accommodation\":\"Rumah Keluarga\",\"email\":\"budi@example.com\",\"whatsapp_number\":\"081234567890\"},{\"full_name\":\"Siti Aminah\",\"nickname\":\"\",\"sp_code\":\"SP4.2A\",\"birth_date\":\"1982-09-09\",\"address\":\"DI Yogyakarta, Sleman, Depok\"}]}"
+            },
+            "url": { "raw": "{{base_url}}/api/registrations", "host": ["{{base_url}}"], "path": ["api", "registrations"] }
+          }
+        },
+        {
+          "name": "Get Session by Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/registrations/token/{{manage_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "registrations", "token", "{{manage_token}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Session by Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"participants\":[{\"id\":\"{{participant_id}}\",\"full_name\":\"Budi Santoso\",\"nickname\":\"Budi\",\"sp_code\":\"SP4.2\",\"birth_date\":\"1980-05-17\",\"address\":\"DI Yogyakarta, Sleman, Depok\",\"last_occupation\":\"Pengusaha\",\"accommodation\":\"Hotel / Penginapan\",\"whatsapp_number\":\"081234567890\"},{\"full_name\":\"Anak Baru\",\"sp_code\":\"SP4.2.1\",\"birth_date\":\"2010-01-01\",\"address\":\"DI Yogyakarta, Sleman, Depok\"}]}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/registrations/token/{{manage_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "registrations", "token", "{{manage_token}}"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Registration by Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/registrations/token/{{manage_token}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "registrations", "token", "{{manage_token}}", "cancel"]
+            }
+          }
+        },
+        {
+          "name": "Public Participants (grouped)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/participants/public", "host": ["{{base_url}}"], "path": ["api", "participants", "public"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Sessions & Participants",
+      "item": [
+        {
+          "name": "List Sessions",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/admin/sessions", "host": ["{{base_url}}"], "path": ["api", "admin", "sessions"] }
+          }
+        },
+        {
+          "name": "Get Session by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/admin/sessions/{{session_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "sessions", "{{session_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Add Participant",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"full_name\":\"Tambahan Peserta\",\"sp_code\":\"SP4.2.2\",\"birth_date\":\"2012-03-03\",\"address\":\"DI Yogyakarta, Sleman, Depok\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/sessions/{{session_id}}/participants",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "sessions", "{{session_id}}", "participants"]
+            }
+          }
+        },
+        {
+          "name": "Check-in All (session)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"value\":true}" },
+            "url": {
+              "raw": "{{base_url}}/api/admin/sessions/{{session_id}}/checkin-all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "sessions", "{{session_id}}", "checkin-all"]
+            }
+          }
+        },
+        {
+          "name": "Update Participant",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"last_occupation\":\"Dosen\",\"accommodation\":\"Hotel / Penginapan\"}" },
+            "url": {
+              "raw": "{{base_url}}/api/admin/participants/{{participant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "participants", "{{participant_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Set Participant Status",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"status\":\"cancelled\"}" },
+            "url": {
+              "raw": "{{base_url}}/api/admin/participants/{{participant_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "participants", "{{participant_id}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Check-in Participant",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"value\":true}" },
+            "url": {
+              "raw": "{{base_url}}/api/admin/participants/{{participant_id}}/checkin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "participants", "{{participant_id}}", "checkin"]
+            }
+          }
+        },
+        {
+          "name": "Delete Participant",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/admin/participants/{{participant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "participants", "{{participant_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Session",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/admin/sessions/{{session_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "sessions", "{{session_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Check-in & Grouping",
+      "item": [
+        {
+          "name": "Search for Check-in",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/admin/checkin/search?q=budi",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "checkin", "search"],
+              "query": [{ "key": "q", "value": "budi" }]
+            }
+          }
+        },
+        {
+          "name": "List SP Induk",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/admin/sp-induk", "host": ["{{base_url}}"], "path": ["api", "admin", "sp-induk"] }
+          }
+        },
+        {
+          "name": "Grouped by SP Induk",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/admin/participants/grouped?only_attending=true",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "participants", "grouped"],
+              "query": [{ "key": "only_attending", "value": "true" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Stats & Export",
+      "item": [
+        {
+          "name": "Stats",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/admin/stats", "host": ["{{base_url}}"], "path": ["api", "admin", "stats"] }
+          }
+        },
+        {
+          "name": "Export CSV",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/admin/export/csv",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "export", "csv"],
+              "query": [{ "key": "induk", "value": "all", "disabled": true }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Notifications (log-only)",
+      "item": [
+        {
+          "name": "Broadcast Reminder",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"induk\":\"all\",\"onlyAttending\":true,\"channels\":[\"whatsapp\",\"email\"]}" },
+            "url": {
+              "raw": "{{base_url}}/api/admin/notifications/broadcast",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "notifications", "broadcast"]
+            }
+          }
+        },
+        {
+          "name": "List Logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (Array.isArray(j) && j.length) pm.collectionVariables.set('log_id', j[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/admin/notifications/logs",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "notifications", "logs"]
+            }
+          }
+        },
+        {
+          "name": "Retry Log",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/admin/notifications/logs/{{log_id}}/retry",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "notifications", "logs", "{{log_id}}", "retry"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Event Settings",
+      "item": [
+        {
+          "name": "Get Event (admin)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/admin/event", "host": ["{{base_url}}"], "path": ["api", "admin", "event"] }
+          }
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"registration_open\":true,\"tagline\":\"Guyub Rukun Saklawase\",\"registration_deadline\":\"2026-08-10T16:59:00.000Z\"}"
+            },
+            "url": { "raw": "{{base_url}}/api/admin/event", "host": ["{{base_url}}"], "path": ["api", "admin", "event"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Committees (super admin)",
+      "item": [
+        {
+          "name": "List Committees",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/api/admin/committees", "host": ["{{base_url}}"], "path": ["api", "admin", "committees"] }
+          }
+        },
+        {
+          "name": "Create Committee",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.id) pm.collectionVariables.set('committee_id', j.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Panitia Dua\",\"email\":\"panitia2@spportal.id\",\"password\":\"rahasia123\",\"role\":\"committee\"}"
+            },
+            "url": { "raw": "{{base_url}}/api/admin/committees", "host": ["{{base_url}}"], "path": ["api", "admin", "committees"] }
+          }
+        },
+        {
+          "name": "Update Committee",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"name\":\"Panitia Dua (revisi)\",\"role\":\"committee\"}" },
+            "url": {
+              "raw": "{{base_url}}/api/admin/committees/{{committee_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "committees", "{{committee_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Committee Active",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"is_active\":false}" },
+            "url": {
+              "raw": "{{base_url}}/api/admin/committees/{{committee_id}}/toggle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "committees", "{{committee_id}}", "toggle"]
+            }
+          }
+        },
+        {
+          "name": "Delete Committee",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/admin/committees/{{committee_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "committees", "{{committee_id}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

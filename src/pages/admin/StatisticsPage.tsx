@@ -14,8 +14,8 @@ export default function StatisticsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  function downloadCsv() {
-    const blob = new Blob([exportCsv()], { type: 'text/csv;charset=utf-8;' });
+  async function downloadCsv() {
+    const blob = new Blob([await exportCsv()], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

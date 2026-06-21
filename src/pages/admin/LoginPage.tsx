@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth';
 import { Alert, Button, Card, Field, Input, Logo } from '../../components/ui';
+import { getSetupStatus } from '../../lib/api';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -10,6 +11,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showDemoBox, setShowDemoBox] = useState(false);
+
+  useEffect(() => {
+    getSetupStatus()
+      .then((s) => setShowDemoBox(s.only_default_admin))
+      .catch(() => {});
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -68,11 +76,13 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="mt-6 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
-          <p className="font-semibold text-slate-600">Akun demo:</p>
-          <p>Email: admin@spportal.id</p>
-          <p>Kata sandi: admin123</p>
-        </div>
+        {showDemoBox && (
+          <div className="mt-6 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
+            <p className="font-semibold text-slate-600">Akun demo:</p>
+            <p>Email: admin@spportal.id</p>
+            <p>Kata sandi: admin123</p>
+          </div>
+        )}
       </Card>
 
       <Link to="/" className="mt-6 text-sm font-semibold text-slate-500 hover:text-brand-700">

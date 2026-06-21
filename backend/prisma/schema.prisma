@@ -1,0 +1,93 @@
+// SP Portal — database schema (mirror of the old SQLAlchemy models.py).
+//
+// Notes:
+//  - All timestamps are plain ISO-8601 STRINGS (e.g. 2026-06-12T10:00:00.000Z),
+//    not Prisma DateTime, so the wire format matches JS `toISOString()` exactly
+//    and an existing sp_portal.db stays compatible.
+//  - IDs are UUID-v4 strings, generated in app code (utils.uid()).
+//  - @map / @@map keep DB column/table names in snake_case even though the
+//    Prisma model fields are camelCase.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Committee {
+  id           String  @id
+  name         String  @default("")
+  email        String  @unique
+  role         String  @default("committee") // super_admin | committee
+  isActive     Boolean @default(true) @map("is_active")
+  createdAt    String  @map("created_at")
+  // Internal only — never serialized to the client.
+  passwordHash String  @map("password_hash")
+
+  @@map("committees")
+}
+
+model EventSettings {
+  id                    String  @id
+  eventName             String  @default("") @map("event_name")
+  tagline               String  @default("")
+  eventDate             String  @default("") @map("event_date")
+  location              String  @default("")
+  address               String  @default("")
+  mapsQuery             String  @default("") @map("maps_query")
+  registrationDeadline  String? @map("registration_deadline")
+  registrationOpen      Boolean @default(true) @map("registration_open")
+  qrCheckinEnabled      Boolean @default(true) @map("qr_checkin_enabled")
+  updatedAt             String  @map("updated_at")
+
+  @@map("event_settings")
+}
+
+model RegistrationSession {
+  id             String        @id
+  manageToken    String        @unique @map("manage_token")
+  privacyConsent Boolean       @default(false) @map("privacy_consent")
+  registeredAt   String        @map("registered_at")
+  updatedAt      String?       @map("updated_at")
+  participants   Participant[]
+
+  @@map("registration_sessions")
+}
+
+model Participant {
+  id               String              @id
+  sessionId        String              @map("session_id")
+  fullName         String              @map("full_name")
+  nickname         String              @default("")
+  spCode           String              @map("sp_code")
+  birthDate        String              @default("") @map("birth_date")
+  address          String              @default("")
+  addressDetail    String              @default("") @map("address_detail")
+  lastOccupation   String              @default("") @map("last_occupation")
+  accommodation    String              @default("")
+  email            String?
+  whatsappNumber   String?             @map("whatsapp_number")
+  attendanceStatus String              @default("will_attend") @map("attendance_status")
+  isCheckedIn      Boolean             @default(false) @map("is_checked_in")
+  checkedInAt      String?             @map("checked_in_at")
+  session          RegistrationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([spCode])
+  @@map("participants")
+}
+
+model NotificationLog {
+  id           String  @id
+  sessionId    String? @map("session_id")
+  type         String // participant_confirmation | committee_blast | reminder
+  channel      String // whatsapp | email
+  status       String // sent | failed | dry_run
+  errorMessage String? @map("error_message")
+  createdAt    String  @map("created_at")
+
+  @@map("notification_logs")
+}
