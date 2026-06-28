@@ -34,7 +34,7 @@ export const settings = {
   accessTokenExpireMinutes: int('ACCESS_TOKEN_EXPIRE_MINUTES', 60 * 24), // 24h
 
   // CORS — comma-separated list of allowed frontend origins.
-  corsOrigins: str('CORS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173,https://effortless-starlight-0ed3fe.netlify.app,https://reunisoeropramono.web.id'),
+  corsOrigins: str('CORS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173,https://effortless-starlight-0ed3fe.netlify.app,https://reunisoeropramono.web.id,https://www.reunisoeropramono.web.id'),
 
   // First super-admin + default event, created automatically when DB is empty.
   bootstrapAdminEmail: str('BOOTSTRAP_ADMIN_EMAIL', 'admin@spportal.id'),
