@@ -392,7 +392,7 @@ export function Logo({ className }: { className?: string }) {
       <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm text-white shadow-sm ring-1 ring-black/5">
         SP
       </span>
-      <span>SP Portal</span>
+      <span>Reuni Soero Pramono</span>
     </span>
   );
 }
