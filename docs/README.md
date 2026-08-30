@@ -9,7 +9,6 @@ Kumpulan dokumen perancangan & spesifikasi **SP Portal** (Soero Pramono Reunion 
 | [SDD](SP_Portal_SDD_v1.0.md) | 1.1 | System Design — arsitektur lapisan, skema DB (PostgreSQL), desain REST API, struktur backend FastAPI |
 | [UI/UX Flow](SP_Portal_UIUX_Flow_v1.0.md) | 1.2 | Design system, peta navigasi, user flow (Mermaid), wireframe, state komponen, aksesibilitas |
 | [Task Breakdown](SP_Portal_Task_Breakdown_v1.0.md) | 1.1 | WBS — fase, epik, tugas, status, estimasi, dependensi, milestone |
-| [Improvement Plan](IMPROVEMENT_PLAN.md) | — | Rencana peningkatan v3.2: halaman publik `/peserta`, keputusan check-in, analisis fitur, urutan kerja |
 
 ## Ringkasan keputusan produk (terkini)
 
@@ -20,11 +19,11 @@ Kumpulan dokumen perancangan & spesifikasi **SP Portal** (Soero Pramono Reunion 
 - **Alamat Domisili** dipilih lewat **satu kotak pencarian kecamatan** se-Indonesia (autocomplete; label "Provinsi, Kabupaten/Kota, Kecamatan"); data dari `idn-area-data`.
 - **Tanpa kuota** dan **tanpa pencegahan duplikat** (kontrol via tools admin).
 - Identitas sesi di admin diwakili **peserta pertama** (kolom "Perwakilan").
-- **(v3.2)** Halaman publik **Peserta Terdaftar** (`/peserta`): per SP Induk, hanya nama + kode SP + kontak (penuh, `wa.me`); peserta batal disembunyikan.
+- **(v3.2)** Halaman publik **Peserta Terdaftar** (`/peserta`): per SP Induk, hanya nama + kode SP + kontak; nomor WhatsApp **disamarkan** (`maskWhatsApp()`, bukan tautan `wa.me`), email (jika WA kosong) tetap tampil penuh sebagai tautan `mailto:`; peserta batal disembunyikan.
 - **(v3.2)** **Check-in dipertahankan** (meja registrasi hari-H) dengan perbaikan: limit query kosong, check-in per sesi, hitungan hadir global.
 
 ## Stack ringkas
 
-React 18 + TypeScript + Vite + Tailwind CSS · React Router v6 · `qrcode.react` · `flowbite-datepicker` · data wilayah `idn-area-data`. Backend target: FastAPI + PostgreSQL (saat ini di-mock via `localStorage` di `src/lib/api.ts`).
+React 18 + TypeScript + Vite + Tailwind CSS · React Router v6 · `qrcode.react` · `flowbite-datepicker` · data wilayah `idn-area-data`. Backend: Express + TypeScript + Prisma + PostgreSQL (lihat `backend/README.md`). Frontend punya dua mode data (`src/lib/mode.ts`, `VITE_DEMO_MODE`): DEMO (default) memakai mock `localStorage` di `src/lib/api.mock.ts` — cocok untuk build portofolio tanpa backend/data asli — sedangkan REAL memanggil backend ini lewat `src/lib/api.real.ts`.
 
 > Dependensi runtime baru: jalankan `npm install` sebelum `npm run build` / `npm run dev`.
