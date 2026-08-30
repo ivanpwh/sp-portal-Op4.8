@@ -11,7 +11,9 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "test": "vitest run",
+    "test:unit": "vitest run src/utils.test.ts src/schemas.test.ts src/security.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -32,6 +34,9 @@
     "@types/node": "^20.14.0",
     "prisma": "^5.22.0",
     "tsx": "^4.16.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
+    "vitest": "^2.1.9"
   }
 }

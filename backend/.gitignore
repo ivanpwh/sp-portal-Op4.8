@@ -6,5 +6,6 @@ dist/
 *.db-shm
 *.sqlite3
 .env
+.env.test
 # Prisma generated client (regenerated via `prisma generate`)
 prisma/generated/
