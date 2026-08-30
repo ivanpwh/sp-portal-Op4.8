@@ -6,6 +6,22 @@ dummy** — perlakukan setiap perubahan yang menyentuh PII dengan standar
 produksi (validasi input, tidak ada log/serialisasi kredensial, tidak bocor ke
 pihak ketiga).
 
+## Peta Dokumentasi untuk Agent
+
+- [docs/API_REFERENCE.md](docs/API_REFERENCE.md) — baca sebelum menyentuh
+  endpoint manapun.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — baca sebelum mengubah alur
+  lintas frontend-backend.
+- [docs/GLOSSARY.md](docs/GLOSSARY.md) — baca sebelum menginterpretasikan
+  istilah domain.
+- [docs/CHANGE_RECIPES.md](docs/CHANGE_RECIPES.md) — baca SEBELUM memulai
+  perubahan yang menyentuh field data / endpoint baru / aturan validasi
+  lintas frontend-backend.
+- [docs/KNOWN_GOTCHAS.md](docs/KNOWN_GOTCHAS.md) — baca sebelum menyimpulkan
+  sesuatu "sudah pasti benar".
+- `backend/CLAUDE.md` / `src/CLAUDE.md` — otomatis termuat saat bekerja di
+  folder masing-masing.
+
 ## Arsitektur
 
 Dua sisi terpisah dalam satu repo:

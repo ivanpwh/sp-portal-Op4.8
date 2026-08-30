@@ -9,6 +9,9 @@ Kumpulan dokumen perancangan & spesifikasi **SP Portal** (Soero Pramono Reunion 
 | [SDD](SP_Portal_SDD_v1.0.md) | 1.1 | System Design — arsitektur lapisan, skema DB (PostgreSQL), desain REST API, struktur backend FastAPI |
 | [UI/UX Flow](SP_Portal_UIUX_Flow_v1.0.md) | 1.2 | Design system, peta navigasi, user flow (Mermaid), wireframe, state komponen, aksesibilitas |
 | [Task Breakdown](SP_Portal_Task_Breakdown_v1.0.md) | 1.1 | WBS — fase, epik, tugas, status, estimasi, dependensi, milestone |
+| [API Reference](API_REFERENCE.md) | 1.0 | Referensi AI-agent: tabel lengkap 35 endpoint HTTP backend (method, auth, body zod, response, error) |
+| [Architecture](ARCHITECTURE.md) | 1.0 | Referensi AI-agent: diagram sistem, 5 sequence diagram alur inti, peta "where does X live" |
+| [Glossary](GLOSSARY.md) | 1.0 | Referensi AI-agent: istilah domain (Kode SP, manage_token, attendance_status, dll.) dengan rujukan file |
 
 ## Ringkasan keputusan produk (terkini)
 
