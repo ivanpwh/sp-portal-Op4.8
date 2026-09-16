@@ -164,6 +164,22 @@ export default function SuccessPage() {
             {copied ? '✓ Tersalin' : 'Salin Tautan'}
           </Button>
         </div>
+
+        {/* QR berisi TAUTANNYA, bukan kode check-in. Label "rahasia" itu penting:
+            halaman ini memuat dua QR berdampingan, dan yang satu memang untuk
+            ditunjukkan ke panitia sementara yang ini tidak boleh ditunjukkan ke
+            siapa pun. Tanpa pembeda yang tegas, keduanya gampang tertukar.
+
+            Alasan ia ada: menyalin tautan ke tempat aman bukan kebiasaan orang;
+            memotret layar iya. */}
+        <div className="mt-4 flex flex-col items-center gap-2 rounded-2xl border border-brand-200 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-700">Foto QR ini untuk menyimpan tautannya</p>
+          <QRCodeSVG value={manageUrl} size={160} level="M" />
+          <p className="max-w-xs text-center text-xs text-red-700">
+            <strong>Rahasia.</strong> Siapa pun yang memindainya bisa mengubah data dan membatalkan
+            kehadiran seluruh keluarga. Jangan disebarkan ke grup.
+          </p>
+        </div>
         <Link to={`/kelola/${session.manage_token}`} className="mt-3 inline-block">
           <Button>Buka Halaman Kelola →</Button>
         </Link>

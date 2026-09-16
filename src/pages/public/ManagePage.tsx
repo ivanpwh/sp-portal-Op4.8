@@ -80,6 +80,20 @@ export default function ManagePage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const manageUrl = `${window.location.origin}/kelola/${token}`;
+
+  async function copyManageLink() {
+    try {
+      await navigator.clipboard.writeText(manageUrl);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Izin papan klip bisa ditolak. Kolom teksnya tetap bisa dipilih manual,
+      // jadi tidak perlu mengagetkan orang dengan pesan galat.
+    }
+  }
 
   function hydrate(s: SessionWithParticipants) {
     setSession(s);
@@ -210,6 +224,32 @@ export default function ManagePage() {
         </div>
         {cancelled ? <Badge color="red">Dibatalkan</Badge> : <Badge color="green">Akan Hadir</Badge>}
       </div>
+
+      {/* Menampilkan ulang tautannya. Sebelum ini ia hanya pernah terlihat sekali
+          di halaman sukses — orang yang membuka halaman ini dari bookmark tidak
+          punya cara menyimpan cadangannya. */}
+      <Card className="mb-5 bg-brand-50">
+        <h2 className="text-base font-bold text-slate-900">Tautan Kelola Anda</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Simpan tautan ini bila belum. Tanpa tautan ini Anda tidak bisa mengubah data sendiri —
+          harus menghubungi panitia.
+        </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <input
+            readOnly
+            value={manageUrl}
+            className="input-base flex-1 text-sm"
+            onFocus={(e) => e.target.select()}
+          />
+          <Button variant="outline" onClick={() => void copyManageLink()}>
+            {linkCopied ? '✓ Tersalin' : 'Salin Tautan'}
+          </Button>
+        </div>
+        <p className="mt-2 text-xs text-red-700">
+          <strong>Rahasia.</strong> Siapa pun yang memegangnya bisa mengubah data dan membatalkan
+          kehadiran seluruh keluarga.
+        </p>
+      </Card>
 
       {saved && (
         <div className="mb-5">

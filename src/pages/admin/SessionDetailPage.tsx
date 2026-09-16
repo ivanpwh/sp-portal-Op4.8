@@ -52,6 +52,21 @@ export default function SessionDetailPage() {
 
   const [busyPid, setBusyPid] = useState<string | null>(null);
   const [confirmDeleteSession, setConfirmDeleteSession] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // Dirakit di klien, bukan dikirim backend: token-nya sudah ada di sessionDict,
+  // dan origin-nya hanya diketahui browser.
+  const manageUrl = session ? `${window.location.origin}/kelola/${session.manage_token}` : '';
+
+  async function copyManageLink() {
+    try {
+      await navigator.clipboard.writeText(manageUrl);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Izin papan klip bisa ditolak; kolom teksnya tetap bisa dipilih manual.
+    }
+  }
   const [confirmDeletePart, setConfirmDeletePart] = useState<Participant | null>(null);
 
   // Participant editor modal
@@ -278,6 +293,30 @@ export default function SessionDetailPage() {
               <QRCodeSVG value={shortCode(session)} size={140} level="M" />
             </div>
             <p className="mt-2 text-xs text-slate-400">{attending} akan hadir · {checkedIn} sudah check-in</p>
+          </Card>
+
+          {/* Satu-satunya jalur pemulihan yang aman saat pendaftar kehilangan
+              tautannya. Kode SP terbit di /peserta dan tanggal lahir diketahui
+              se-keluarga, jadi pemulihan mandiri berbasis keduanya akan
+              menyerahkan tombol "batalkan seluruh keluarga" ke sembarang
+              kerabat. Panitia yang memverifikasi orangnya. */}
+          <Card className="space-y-2">
+            <h2 className="text-base font-bold text-slate-900">Tautan Kelola Peserta</h2>
+            <p className="text-xs text-slate-500">
+              Kirimkan HANYA kepada pendaftarnya. Pemegang tautan bisa mengubah data, menambah,
+              menghapus, dan membatalkan kehadiran seluruh sesi ini — tanpa login.
+            </p>
+            <div className="flex flex-col gap-2">
+              <input
+                readOnly
+                value={manageUrl}
+                className="input-base text-xs"
+                onFocus={(e) => e.target.select()}
+              />
+              <Button variant="outline" size="sm" onClick={() => void copyManageLink()}>
+                {linkCopied ? '✓ Tersalin' : 'Salin Tautan Kelola'}
+              </Button>
+            </div>
           </Card>
 
           <Card className="space-y-3">
