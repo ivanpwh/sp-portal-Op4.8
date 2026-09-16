@@ -340,8 +340,10 @@ export default function SessionDetailPage() {
       </div>
 
       {/* Participant editor */}
-      <Modal open={pOpen} onClose={() => setPOpen(false)} title={pEditing ? 'Edit Peserta' : 'Tambah Peserta'}>
+      <Modal open={pOpen} onClose={() => setPOpen(false)} title={pEditing ? 'Edit Peserta' : 'Tambah Peserta'} size="xl">
         <div className="space-y-4">
+          {/* Satu grid dua kolom untuk seluruh form: di layar lebar semua field
+              muat tanpa scroll panjang; di mobile tetap menumpuk satu kolom. */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Nama Lengkap" required error={pErrors.full_name}>
               <Input value={pForm.full_name} onChange={(e) => setPForm({ ...pForm, full_name: e.target.value })} aria-invalid={!!pErrors.full_name} />
@@ -349,22 +351,18 @@ export default function SessionDetailPage() {
             <Field label="Nama Panggilan" hint="Opsional">
               <Input value={pForm.nickname ?? ''} onChange={(e) => setPForm({ ...pForm, nickname: e.target.value })} placeholder="Mis. Budi (opsional)" />
             </Field>
-          </div>
-          <Field label="Kode SP" required error={pErrors.sp_code} hint={SP_CODE_HINT}>
-            <Input value={pForm.sp_code} onChange={(e) => setPForm({ ...pForm, sp_code: e.target.value })} aria-invalid={!!pErrors.sp_code} className="font-mono uppercase" />
-          </Field>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Kode SP" required error={pErrors.sp_code} hint={SP_CODE_HINT}>
+              <Input value={pForm.sp_code} onChange={(e) => setPForm({ ...pForm, sp_code: e.target.value })} aria-invalid={!!pErrors.sp_code} className="font-mono uppercase" />
+            </Field>
             <Field label="Tanggal Lahir" required error={pErrors.birth_date}>
               <DatePicker value={pForm.birth_date} onChange={(v) => setPForm({ ...pForm, birth_date: v })} max={todayStr} ariaInvalid={!!pErrors.birth_date} />
             </Field>
             <Field label="Provinsi/Kota/Kecamatan/Kelurahan Domisili" required error={pErrors.address}>
               <RegionPicker value={pForm.address} onChange={(v) => setPForm({ ...pForm, address: v })} ariaInvalid={!!pErrors.address} idPrefix="reg-detail" requireVillage={villageRequired} />
             </Field>
-          </div>
-          <Field label="Alamat Lengkap Domisili" hint="Opsional — nama jalan, RT/RW, nomor rumah, dll.">
-            <Input value={pForm.address_detail ?? ''} onChange={(e) => setPForm({ ...pForm, address_detail: e.target.value })} placeholder="Mis. Jl. Mawar No. 5, RT 02/RW 03 (opsional)" />
-          </Field>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Alamat Lengkap Domisili" hint="Opsional — nama jalan, RT/RW, nomor rumah, dll.">
+              <Input value={pForm.address_detail ?? ''} onChange={(e) => setPForm({ ...pForm, address_detail: e.target.value })} placeholder="Mis. Jl. Mawar No. 5, RT 02/RW 03 (opsional)" />
+            </Field>
             <Field label="Pekerjaan Terakhir" hint="Opsional">
               <Input value={pForm.last_occupation ?? ''} onChange={(e) => setPForm({ ...pForm, last_occupation: e.target.value })} />
             </Field>
@@ -376,8 +374,6 @@ export default function SessionDetailPage() {
                 ))}
               </Select>
             </Field>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Email" error={pErrors.email} hint="Opsional">
               <Input type="email" value={pForm.email ?? ''} onChange={(e) => setPForm({ ...pForm, email: e.target.value })} aria-invalid={!!pErrors.email} />
             </Field>
@@ -385,7 +381,7 @@ export default function SessionDetailPage() {
               <Input type="tel" inputMode="numeric" value={pForm.whatsapp_number ?? ''} onChange={(e) => setPForm({ ...pForm, whatsapp_number: e.target.value })} aria-invalid={!!pErrors.whatsapp_number} />
             </Field>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 sm:ml-auto sm:max-w-sm">
             <Button variant="outline" fullWidth onClick={() => setPOpen(false)}>Batal</Button>
             <Button fullWidth loading={pSaving} onClick={saveParticipant}>Simpan</Button>
           </div>

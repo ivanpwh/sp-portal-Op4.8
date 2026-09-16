@@ -103,7 +103,10 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <div>
+    // `min-w-0` wajib: sebagai grid item, default `min-width:auto` membuat isi
+    // yang lebar (mis. RegionPicker) melebarkan kolom dan memunculkan scroll
+    // horizontal di dalam modal.
+    <div className="min-w-0">
       <label htmlFor={htmlFor} className="field-label">
         {label}
         {required && (
@@ -308,15 +311,25 @@ export function Alert({
 }
 
 // ---------------------------------------------------------------- Modal
+const MODAL_SIZES = {
+  sm: 'sm:max-w-md',
+  md: 'sm:max-w-lg',
+  lg: 'sm:max-w-2xl',
+  xl: 'sm:max-w-4xl',
+} as const;
+
 export function Modal({
   open,
   onClose,
   title,
+  size = 'md',
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** Lebar maksimum panel pada viewport >= sm. Default 'md' (max-w-lg). */
+  size?: keyof typeof MODAL_SIZES;
   children: ReactNode;
 }) {
   const titleId = useId();
@@ -358,7 +371,7 @@ export function Modal({
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="max-h-[90dvh] w-full max-w-lg animate-scale-in overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-5 shadow-xl outline-none sm:rounded-2xl sm:p-6"
+        className={`max-h-[90dvh] w-full animate-scale-in overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-5 shadow-xl outline-none sm:rounded-2xl sm:p-6 ${MODAL_SIZES[size]}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
