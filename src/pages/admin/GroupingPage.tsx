@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { exportCsv, getGroupedBySpInduk } from '../../lib/api';
 import type { SpIndukGroup } from '../../types';
 import { calculateAge, formatBirthDate } from '../../lib/format';
@@ -12,6 +13,42 @@ function downloadCsv(csv: string, filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Isi satu sel tabel yang dijaga tetap satu baris: teks yang melebihi lebar
+ * kolom dipotong dengan elipsis, dan `title` (tooltip bawaan browser) hanya
+ * dipasang ketika pemotongan benar-benar terjadi. Memasang `title` tanpa
+ * syarat akan memunculkan tooltip pada teks yang sudah terbaca utuh — selain
+ * mengganggu, itu membuat pengguna tak bisa menebak sel mana yang sebenarnya
+ * menyembunyikan isi.
+ */
+function Truncated({ text, className = '' }: { text: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [clipped, setClipped] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Toleransi 1px: pembulatan sub-pixel bisa membuat scrollWidth unggul satu
+    // piksel pada teks yang sebetulnya muat.
+    const measure = () => setClipped(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return; // jsdom tidak punya ini
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+
+  return (
+    <span ref={ref} className={`block truncate ${className}`} title={clipped ? text : undefined}>
+      {text}
+    </span>
+  );
+}
+
+function Th({ children }: { children: ReactNode }) {
+  return <th className="whitespace-nowrap px-4 py-2.5 font-semibold">{children}</th>;
 }
 
 export default function GroupingPage() {
@@ -102,39 +139,94 @@ export default function GroupingPage() {
 
               {open && (
                 <div className="overflow-x-auto border-t border-slate-100">
-                  <table className="w-full min-w-[820px] text-left text-sm">
+                  {/*
+                    `table-fixed` + <colgroup> wajib berpasangan di sini. Tanpa
+                    keduanya browser melebarkan kolom mengikuti isi terpanjang
+                    lalu membungkus sisanya ke baris baru — satu alamat panjang
+                    saja cukup membuat seluruh baris setinggi delapan baris teks.
+                    Lebar tetap membuat tiap baris peserta persis satu baris.
+
+                    Kolom "Umur / Tgl Lahir" dan "Menginap" diberi lebar lebih
+                    longgar karena isinya punya batas atas yang diketahui —
+                    tanggal Indonesia terpanjang ("13 September 1974") dan opsi
+                    menginap terpanjang ("Rumah Sendiri (warga lokal)", lihat
+                    ACCOMMODATION_OPTIONS di src/lib/constants.ts) — sehingga
+                    keduanya selalu tampil utuh tanpa elipsis. <Truncated> tetap
+                    dipakai di sana sebagai jaring pengaman: `accommodation` di
+                    backend bertipe string bebas, bukan enum, jadi nilai di luar
+                    daftar masih mungkin masuk dan lebih baik dipotong rapi
+                    daripada meluber ke kolom sebelah.
+                  */}
+                  <table className="w-full min-w-[1540px] table-fixed text-left text-sm">
+                    <colgroup>
+                      <col className="w-[200px]" />
+                      <col className="w-[130px]" />
+                      <col className="w-[260px]" />
+                      <col className="w-[230px]" /> {/* Umur / Tgl Lahir — lihat catatan di atas */}
+                      <col className="w-[150px]" />
+                      <col className="w-[230px]" /> {/* Menginap — lihat catatan di atas */}
+                      <col className="w-[200px]" />
+                      <col className="w-[140px]" />
+                    </colgroup>
                     <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                       <tr>
-                        <th className="px-4 py-2.5">Nama</th>
-                        <th className="px-4 py-2.5">Kode SP</th>
-                        <th className="px-4 py-2.5">Alamat</th>
-                        <th className="px-4 py-2.5">Umur / Tgl Lahir</th>
-                        <th className="px-4 py-2.5">Pekerjaan</th>
-                        <th className="px-4 py-2.5">Menginap</th>
-                        <th className="px-4 py-2.5">Email</th>
-                        <th className="px-4 py-2.5">WA / HP</th>
+                        <Th>Nama</Th>
+                        <Th>Kode SP</Th>
+                        <Th>Alamat</Th>
+                        <Th>Umur / Tgl Lahir</Th>
+                        <Th>Pekerjaan</Th>
+                        <Th>Menginap</Th>
+                        <Th>Email</Th>
+                        <Th>WA / HP</Th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {g.participants.map((p) => (
-                        <tr key={p.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-2.5">
-                            <span className="font-semibold text-slate-800">{p.full_name}</span>
-                            {p.is_checked_in && <Badge color="blue">✓</Badge>}
-                            {p.attendance_status === 'cancelled' && <span className="ml-1"><Badge color="red">Batal</Badge></span>}
-                          </td>
-                          <td className="px-4 py-2.5 font-mono text-slate-700">{p.sp_code}</td>
-                          <td className="px-4 py-2.5 text-slate-600">{p.address || '-'}</td>
-                          <td className="px-4 py-2.5 text-slate-600">
-                            {calculateAge(p.birth_date) != null ? `${calculateAge(p.birth_date)} th` : '-'}
-                            {p.birth_date ? ` · ${formatBirthDate(p.birth_date)}` : ''}
-                          </td>
-                          <td className="px-4 py-2.5 text-slate-600">{p.last_occupation || '-'}</td>
-                          <td className="px-4 py-2.5 text-slate-600">{p.accommodation || '-'}</td>
-                          <td className="px-4 py-2.5 text-slate-600">{p.email || '-'}</td>
-                          <td className="px-4 py-2.5 text-slate-600">{p.whatsapp_number || '-'}</td>
-                        </tr>
-                      ))}
+                      {g.participants.map((p) => {
+                        const age = calculateAge(p.birth_date);
+                        const ageLine =
+                          (age != null ? `${age} th` : '-') +
+                          (p.birth_date ? ` · ${formatBirthDate(p.birth_date)}` : '');
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-2.5">
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                <Truncated text={p.full_name} className="font-semibold text-slate-800" />
+                                {p.is_checked_in && (
+                                  <span className="shrink-0">
+                                    <Badge color="blue">✓</Badge>
+                                  </span>
+                                )}
+                                {p.attendance_status === 'cancelled' && (
+                                  <span className="shrink-0">
+                                    <Badge color="red">Batal</Badge>
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Truncated text={p.sp_code} className="font-mono text-slate-700" />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Truncated text={p.address || '-'} className="text-slate-600" />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Truncated text={ageLine} className="text-slate-600" />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Truncated text={p.last_occupation || '-'} className="text-slate-600" />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Truncated text={p.accommodation || '-'} className="text-slate-600" />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Truncated text={p.email || '-'} className="text-slate-600" />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Truncated text={p.whatsapp_number || '-'} className="text-slate-600" />
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
