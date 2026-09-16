@@ -2,3 +2,18 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Aset build Vite selalu ber-hash isi pada namanya (index-BqYseSo4.js), jadi
+# berkas dengan nama yang sama dijamin tidak pernah berubah isinya. Tanpa blok
+# ini Netlify mengirimnya dengan `max-age=0, must-revalidate` dan setiap
+# kunjungan berulang membayar satu round-trip revalidasi untuk berkas yang
+# mustahil basi.
+#
+# JANGAN menambahkan aturan serupa untuk /index.html: berkas itulah yang
+# menunjuk ke nama-nama ber-hash di atas. Bila ikut di-cache lama, pengguna
+# terkunci pada versi lama setelah deploy karena tidak pernah melihat nama
+# berkas yang baru.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
