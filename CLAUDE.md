@@ -124,8 +124,17 @@ ditulis — cek `services.ts` sebelum mengasumsikan integrasi sudah ada).
 
 ## Verifikasi sebelum menganggap task selesai
 
-- Frontend: `npm run lint && npm run build` (lint = `tsc --noEmit`, build =
+- Frontend: `npm run lint && npm run build` (lint = `tsc -b --noEmit`, build =
   `tsc -b && vite build`), lalu `npm run test` (Vitest).
+  > `-b` itu wajib. Root `tsconfig.json` berisi `"files": []` dengan hanya
+  > `references`, dan `tsc --noEmit` tanpa `-b` tidak menelusuri referensi —
+  > dulu perintah lint selalu lolos dengan **nol berkas diperiksa**, dan empat
+  > galat tipe nyata lolos darinya.
+- Uji komponen memakai React Testing Library dengan setup bersama di
+  `src/test/setup.ts` (cleanup antar-test, pembersihan storage, polyfill
+  `window.matchMedia` yang tidak ada di jsdom). Tanpa polyfill itu
+  `usePrefersReducedMotion` melempar, `SafeBoundary` menelan galatnya, dan uji
+  bisa LULUS padahal komponennya crash.
 - Backend: `npm run build` (`prisma generate` + `tsc`), lalu `npm test`
   (Vitest; `npm run test:unit` untuk subset tanpa DB).
 
