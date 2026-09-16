@@ -7,6 +7,7 @@
 import type {
   Committee,
   EventSettings,
+  LotteryDraw,
   NotificationLog,
   Participant,
   RegistrationSession,
@@ -94,5 +95,29 @@ export function notificationLogDict(l: NotificationLog) {
     status: l.status,
     error_message: l.errorMessage,
     created_at: l.createdAt,
+  };
+}
+
+/**
+ * Lottery winner row. Deliberately exposes ONLY the identity fields already
+ * public via GET /api/participants/public (full_name, nickname, sp_code) —
+ * never whatsapp_number, email, birth_date, address or any other PII. The
+ * LotteryDraw model itself stores no PII beyond these snapshots, so there is
+ * nothing further to strip here.
+ */
+export function lotteryDrawDict(d: LotteryDraw) {
+  return {
+    id: d.id,
+    participant_id: d.participantId,
+    full_name: d.fullName,
+    nickname: d.nickname,
+    sp_code: d.spCode,
+    drawn_at: d.drawnAt,
+    drawn_by_name: d.drawnByName,
+    round_label: d.roundLabel,
+    // voided_at / voided_by_name / void_reason are INTENTIONALLY absent. They
+    // are the audit trail: recorded in the database, never rendered anywhere.
+    // listLotteryWinners() already filters cancelled rows out, so a row that
+    // reaches this function is by definition an active winner.
   };
 }

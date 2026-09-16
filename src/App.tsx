@@ -19,6 +19,8 @@ import CheckinPage from './pages/admin/CheckinPage';
 import EventSettingsPage from './pages/admin/EventSettingsPage';
 import CommitteesPage from './pages/admin/CommitteesPage';
 import NotificationLogsPage from './pages/admin/NotificationLogsPage';
+import LotteryControlPage from './pages/admin/LotteryControlPage';
+import LotteryPresentPage from './pages/admin/LotteryPresentPage';
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated } = useAuth();
@@ -45,6 +47,19 @@ export default function App() {
       {/* Admin auth */}
       <Route path="/admin/login" element={<LoginPage />} />
 
+      {/* Layar besar undian (proyektor). Di luar AdminLayout supaya tidak ada
+          sidebar/header yang memakan ruang layar — TAPI tetap terproteksi
+          RequireAuth persis seperti halaman admin lain. Dibuka lewat
+          window.open dari /admin/undian, jadi sesi login-nya ikut serta. */}
+      <Route
+        path="/admin/undian/layar"
+        element={
+          <RequireAuth>
+            <LotteryPresentPage />
+          </RequireAuth>
+        }
+      />
+
       {/* Admin area (protected) */}
       <Route
         element={
@@ -59,6 +74,7 @@ export default function App() {
         <Route path="/admin/statistik" element={<StatisticsPage />} />
         <Route path="/admin/broadcast" element={<BroadcastPage />} />
         <Route path="/admin/checkin" element={<CheckinPage />} />
+        <Route path="/admin/undian" element={<LotteryControlPage />} />
         <Route path="/admin/notifikasi" element={<NotificationLogsPage />} />
         <Route path="/admin/pengaturan" element={<EventSettingsPage />} />
         <Route

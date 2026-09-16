@@ -54,9 +54,10 @@ jangan validasi manual di handler.
     **tidak** gagal keras kalau Postgres lokal tidak jalan, cukup di-skip
     dengan warning console.
   - Memanggil `resetDb()` (biasanya di `beforeEach`) — menghapus semua baris
-    di kelima tabel secara berurutan sesuai FK (`notification_logs` →
-    `participants` → `registration_sessions` → `committees` →
-    `event_settings`) supaya tiap test mulai dari state kosong.
+    di keenam tabel secara berurutan sesuai FK (`lottery_draws` →
+    `notification_logs` → `participants` → `registration_sessions` →
+    `committees` → `event_settings`) supaya tiap test mulai dari state
+    kosong.
   - Skema database di-push sekali oleh `backend/test/globalSetup.ts`
     (single process, tidak race antar worker paralel) — test individual
     tidak perlu push schema sendiri.

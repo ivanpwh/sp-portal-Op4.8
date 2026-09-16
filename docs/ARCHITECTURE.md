@@ -254,6 +254,97 @@ status `dry_run`. Membalik flag ke `true` akan membuat status menjadi `sent`
 tanpa benar-benar mengirim apa pun, karena belum ada kode pengiriman —
 lihat komentar di `services.ts:logNotification()`.
 
+### f. Undian peserta (dua tab, disinkronkan BroadcastChannel)
+
+Sumber: `src/pages/admin/LotteryControlPage.tsx` (tab kontrol panitia) +
+`src/pages/admin/LotteryPresentPage.tsx` (tab layar besar untuk proyektor).
+Keduanya di balik `RequireAuth`; halaman layar besar sengaja di luar
+`AdminLayout` agar tidak ada sidebar di proyektor.
+
+Dua hal yang paling mudah salah dipahami di alur ini:
+
+1. **Pemenang sudah ditentukan backend sebelum animasi mulai berputar.**
+   `POST /lottery/draw` dipanggil SEKALI di awal; animasi reel hanyalah
+   penundaan teatrikal di klien. Tidak ada undian kedua, dan reel tidak
+   "memilih" siapa pun.
+2. **Hanya tab kontrol yang bicara ke backend.** Tab layar besar tidak pernah
+   memanggil API undian. Sejak MC bisa memicu undian dari panggung (spasi /
+   presenter remote saat layar penuh), layar besar MEMINTA lewat
+   `request-draw` dan Control-lah yang mengeksekusi — jadi tetap mustahil ada
+   dua tab yang mengundi bersamaan. Karena jalur itu membuka pemicu kedua,
+   Control mengabaikan permintaan selama undian berjalan dan meredamnya 1,5
+   detik; transaksi Serializable di backend adalah jaring terakhir, bukan
+   pertahanan pertama.
+3. **Satu undian bisa berisi banyak pemenang.** Semua barisnya ditulis dalam
+   satu transaksi dan berbagi `drawn_at` yang sama — itulah yang membuat satu
+   undian bisa dikenali sebagai satu batch, dan sebabnya `/lottery/undo`
+   membatalkan seluruh batch, bukan satu baris acak di dalamnya.
+4. **Membatalkan pemenang tidak menghapus apa pun.** Undo, "kembalikan", dan
+   reset semuanya mengisi `voided_at`. Barisnya tinggal sebagai jejak audit dan
+   tidak pernah diserialisasi ke klien.
+
+```mermaid
+sequenceDiagram
+    participant PR as LotteryPresentPage.tsx (tab layar besar)
+    participant CT as LotteryControlPage.tsx (tab kontrol)
+    participant BC as BroadcastChannel 'sp-portal-lottery-v2'
+    participant API as api.real.ts
+    participant R as admin.ts: POST /lottery/draw
+    participant SV as services.ts: drawLotteryWinner()
+    participant DB as PostgreSQL
+
+    Note over PR,CT: Present dibuka lewat window.open dari Control — origin sama, token auth di localStorage ikut, tanpa login ulang
+    PR->>BC: {type:'request-snapshot'} (saat mount)
+    BC->>CT: request-snapshot
+    CT->>BC: {type:'state-snapshot', pool, winners, settings, muted}
+    BC->>PR: state-snapshot (Present yang telat dibuka langsung sinkron; juga di-cache ke sessionStorage agar tahan refresh)
+
+    Note over CT: panitia klik "Undi Sekarang" — atau MC menekan spasi di panggung, yang mengirim {type:'request-draw'} dari PR ke CT
+    CT->>BC: {type:'draw-start', count, durationMs}
+    BC->>PR: draw-start
+    par animasi berjalan di kedua tab (durationMs dari pengaturan babak, dikirim ikut dalam draw-start)
+        CT->>CT: reel berputar + playDrumroll()
+        PR->>PR: reel berputar (tanpa suara — suara hanya dari tab kontrol)
+    and permintaan ke server
+        CT->>API: drawLotteryWinner({count, round_label})
+        API->>R: POST /api/admin/lottery/draw
+        R->>SV: drawLotteryWinner(req.committee.name, {count, roundLabel})
+        SV->>DB: $transaction Serializable: hitung ulang pool (voidedAt: null), pilih N berbeda via secureRandomInt, INSERT lottery_draws
+        SV-->>R: {draws, remaining, requested}
+        R-->>API: {winner, winners, remaining, requested}
+        API-->>CT: hasil ditahan dulu (belum ditampilkan)
+    end
+    Note over CT: tunggu sisa durationMs dihitung dari 'draw-start' — bukan dari selesainya request, supaya jaringan lambat tidak membuat kedua tab beda waktu
+    CT->>CT: tampilkan pemenang + playFanfare(effect) + confetti
+    CT->>BC: {type:'draw-result', winners, remaining, requested}
+    BC->>PR: draw-result → reveal + confetti pada saat yang sama
+    CT->>API: getLotteryPool() + getLotteryWinners()
+    CT->>BC: {type:'state-snapshot', ...} (pool sudah berkurang)
+    BC->>PR: state-snapshot
+```
+
+Undo, "kembalikan pemenang", dan reset mengikuti pola yang sama: Control
+memanggil endpointnya, me-refresh pool+winners, lalu mem-broadcast
+`state-snapshot` baru. Reset ada di balik konfirmasi berlapis (wajib mengetik
+ulang kata `RESET`) karena ia mengosongkan seluruh daftar pemenang dan undo
+tidak bisa memulihkannya.
+
+Control juga bisa menyetir tampilan layar besar tanpa mengundi, lewat
+`{type:'screen', mode}`: `'wall'` (papan seluruh pemenang untuk penutup acara),
+`'replay'` (ulangi pengumuman terakhir untuk tamu yang tidak dengar), dan
+`'idle'` (bersihkan layar saat MC pindah ke acara berikutnya).
+
+Dua jaring pengaman di sisi Present, keduanya untuk hal yang sama — layar di
+depan tamu tidak boleh rusak:
+
+- Bila `draw-result` tidak pernah datang (tab kontrol ditutup, undian gagal di
+  server), Present menghentikan reel sendiri lewat watchdog `durationMs + 8s`.
+- Snapshot terakhir di-cache ke `sessionStorage` (`sp.lottery_stage_cache`),
+  jadi satu refresh tak sengaja pada tab proyektor tidak membuat layar kosong.
+  Selama snapshot baru belum datang, header menandai "menunggu sambungan tab
+  kontrol" alih-alih menampilkan angka usang diam-diam. sessionStorage, bukan
+  localStorage: cache itu milik satu tab proyektor saja.
+
 ## Where does X live
 
 | Konsep bisnis | Frontend | Backend |
@@ -270,6 +361,12 @@ lihat komentar di `services.ts:logNotification()`.
 | Mode data DEMO vs REAL | `src/lib/mode.ts` (`DEMO_MODE`, `API_BASE_URL`) | — |
 | Serialisasi camelCase → snake_case | — | `backend/src/serializers.ts` (`participantDict`, `sessionDict`, `eventDict`, `committeeDict`, `notificationLogDict`, `flatten`) |
 | Validasi body request | — | zod schemas — `backend/src/schemas.ts` |
+| **Pemilihan pemenang undian** (satu-satunya sumber kebenaran) | — (frontend hanya menampilkan; animasi tidak memilih siapa pun) | `drawLotteryWinner()` — `backend/src/services.ts` (`$transaction` Serializable + `secureRandomInt`) |
+| Pool undian (siapa yang masih berhak) | — (hanya menampilkan hasil `getLotteryPool()`) | `getLotteryPool()` — `backend/src/services.ts` (anti-join ke `lottery_draws`) |
+| Sinkronisasi antar-tab undian (kontrol ↔ layar besar) | `openLotteryChannel()` — `src/lib/lotteryChannel.ts` (`BroadcastChannel`, tanpa WebSocket/server) | — |
+| Animasi reel undian + confetti | `LotteryReel` + konstanta `DRAW_ANIMATION_MS` — `src/components/LotteryReel.tsx` | — |
+| Suara undian (drumroll & fanfare) | `src/lib/lotterySound.ts` (Web Audio API, disintesis — tanpa file audio); mute persisted di `sp.lottery_muted` | — |
+| Undian di mode DEMO | `getLotteryPool/getLotteryWinners/drawLotteryWinner/undoLastLotteryDraw/resetLottery` — `src/lib/api.mock.ts` (localStorage `sp.lottery_draws`, acak via `crypto.getRandomValues`) | — |
 
 **PENTING:** `isValidSpCode`, `normalizeSpCode`, `spInduk`, `compareSpCode`,
 `normalizeWhatsApp`/`normalizeWhatsapp`, dan `calculateAge` **diimplementasikan

@@ -124,3 +124,28 @@ tidak boleh mendemosikan (`PATCH .../:id` ubah role) atau menghapus
 (`DELETE .../:id`) super_admin **terakhir** — dicegah dengan menghitung
 `otherSupers` sebelum aksi, melempar `400` jika hasilnya nol. Ini mencegah
 lockout total dari panel admin.
+
+## Pool undian
+
+Kumpulan peserta yang masih **berhak** diundi pada
+`GET /api/admin/lottery/pool` (`services.getLotteryPool()`). Dua syarat, dan
+hanya dua:
+
+1. `attendance_status === 'will_attend'` — peserta yang sudah membatalkan
+   kehadiran tidak ikut diundi.
+2. `Participant.id`-nya belum pernah muncul di tabel `lottery_draws`
+   (anti-join) — sekali menang, keluar dari pool.
+
+Yang **tidak** memengaruhi pool: status check-in (`is_checked_in`) sengaja
+diabaikan, jadi peserta yang belum sempat check-in tetap bisa menang. Tidak ada
+pengelompokan atau pembobotan per SP Induk — tiap `Participant` adalah satu
+entri independen, termasuk pasangan ber-suffix `A` (lihat "SP Code, SP Induk,
+suffix A" di atas).
+
+Peserta **kembali** ke pool lewat tiga jalan, dan semuanya *soft void* —
+barisnya ditandai, tidak dihapus: `POST /lottery/undo` (membatalkan seluruh
+undian terakhir), `POST /lottery/winners/:id/void` (membatalkan satu pemenang
+tertentu), atau `POST /lottery/reset` (mengosongkan seluruh daftar pemenang,
+permanen). Menghapus `Participant`-nya justru **tidak** mengembalikannya —
+baris `lottery_draws` menyimpan snapshot nama/kode SP dan `participant_id`-nya
+hanya soft reference, sehingga riwayat pemenang tetap utuh.

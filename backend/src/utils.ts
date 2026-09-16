@@ -27,6 +27,19 @@ export function genToken(length = 24): string {
   return out;
 }
 
+/**
+ * Uniform random integer in [0, max). Wraps crypto.randomInt — used for the
+ * lottery winner pick, where fairness matters, so Math.random (predictable and
+ * not uniformly distributed over a range) must never be used on that path.
+ * Exported separately so it can be unit-tested without a DB.
+ */
+export function secureRandomInt(max: number): number {
+  if (!Number.isInteger(max) || max < 1) {
+    throw new RangeError(`secureRandomInt: max harus bilangan bulat >= 1 (dapat ${max})`);
+  }
+  return randomInt(max);
+}
+
 /** UTC timestamp in JS `toISOString()` shape, e.g. 2026-06-12T10:00:00.000Z. */
 export function nowIso(): string {
   return new Date().toISOString();
@@ -53,6 +66,7 @@ export function normalizeWhatsapp(raw: string | null | undefined): string {
 export function isValidWhatsapp(raw: string | null | undefined): boolean {
   return /^62\d{8,13}$/.test(normalizeWhatsapp(raw));
 }
+
 
 // ---------------------------------------------------------------------------
 // SP code (PRD §2) — format: SP[num](.[num])*[A]?  (A = spouse). Stored UPPERCASE.

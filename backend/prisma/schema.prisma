@@ -92,3 +92,41 @@ model NotificationLog {
 
   @@map("notification_logs")
 }
+
+// Lottery draw history (fitur Undian). Every row is one winner already drawn.
+//
+// All participant fields here are SNAPSHOTS taken at draw time, and
+// `participantId` is a SOFT reference (no @relation / no FK cascade — same
+// pattern as NotificationLog.sessionId). A winner's history row therefore
+// survives intact even if an admin later edits or deletes the Participant via
+// DELETE /api/admin/participants/:id.
+// Cancelling a winner is a SOFT VOID, never a delete: the row stays and is
+// marked instead. That is what gives the feature an audit trail on both sides —
+// every draw AND every cancellation is recoverable evidence of what happened on
+// stage. `voidedAt: null` therefore means "currently a winner", and every query
+// that asks "who has won?" or "who is still eligible?" must filter on it.
+//
+// The voided_* columns are deliberately NOT serialized to any client (see
+// lotteryDrawDict): the committee UI shows active winners only.
+model LotteryDraw {
+  id            String  @id
+  participantId String  @map("participant_id")
+  fullName      String  @map("full_name")
+  nickname      String  @default("")
+  spCode        String  @map("sp_code")
+  drawnAt       String  @map("drawn_at")
+  // Snapshot of the committee member who pressed the draw button (accountability).
+  drawnByName   String  @default("") @map("drawn_by_name")
+  // Which prize round this draw belonged to, e.g. "Hadiah Utama - Sepeda".
+  // Free text typed by the committee and shown on the projector — never PII.
+  roundLabel    String  @default("") @map("round_label")
+  // null = active winner. Set = cancelled, and back in the pool.
+  voidedAt      String? @map("voided_at")
+  voidedByName  String  @default("") @map("voided_by_name")
+  // 'undo' (last draw taken back) | 'manual' (a specific winner returned) |
+  // 'reset' (whole history cleared).
+  voidReason    String  @default("") @map("void_reason")
+
+  @@index([voidedAt])
+  @@map("lottery_draws")
+}

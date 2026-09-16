@@ -13,6 +13,11 @@
 import type {
   Committee,
   EventSettings,
+  LotteryDrawOptions,
+  LotteryDrawResult,
+  LotteryPoolParticipant,
+  LotteryVoidReason,
+  LotteryWinner,
   NotificationChannel,
   NotificationLog,
   Participant,
@@ -301,4 +306,55 @@ export function updateCommittee(
 
 export function deleteCommittee(id: string): Promise<{ id: string }> {
   return request<{ id: string }>('DELETE', `/api/admin/committees/${encodeURIComponent(id)}`);
+}
+
+// ===========================================================================
+// ADMIN — undian (lottery)
+//
+// requireCommittee saja di backend (bukan super-admin) — alat operasional live.
+// Response hanya membawa full_name/nickname/sp_code; tidak ada PII lain.
+// ===========================================================================
+
+export function getLotteryPool(): Promise<LotteryPoolParticipant[]> {
+  return request<LotteryPoolParticipant[]>('GET', '/api/admin/lottery/pool');
+}
+
+export function getLotteryWinners(): Promise<LotteryWinner[]> {
+  return request<LotteryWinner[]>('GET', '/api/admin/lottery/winners');
+}
+
+// Backend memilih pemenang secara instan & atomik. Animasi teatrikal di UI
+// murni penundaan sisi klien — jangan panggil endpoint ini lebih dari sekali
+// per undian. `remaining` = sisa pool setelah undian ini.
+export function drawLotteryWinner(options: LotteryDrawOptions = {}): Promise<LotteryDrawResult> {
+  return request<LotteryDrawResult>('POST', '/api/admin/lottery/draw', {
+    count: options.count ?? 1,
+    round_label: options.round_label ?? '',
+  });
+}
+
+// Membatalkan SELURUH undian terakhir — satu undian bisa berisi banyak pemenang
+// sekaligus, jadi jawabannya berupa daftar.
+export function undoLastLotteryDraw(): Promise<LotteryWinner[]> {
+  return request<LotteryWinner[]>('POST', '/api/admin/lottery/undo');
+}
+
+// Membatalkan SATU pemenang tertentu dan mengembalikannya ke pool — kasus yang
+// tidak bisa ditangani undo, karena orang yang harus dikeluarkan jarang sekali
+// pemenang terakhir.
+export function voidLotteryWinner(
+  id: string,
+  reason: LotteryVoidReason = 'manual',
+): Promise<LotteryWinner> {
+  return request<LotteryWinner>(
+    'POST',
+    `/api/admin/lottery/winners/${encodeURIComponent(id)}/void`,
+    { reason },
+  );
+}
+
+// DESTRUKTIF & PERMANEN: menghapus seluruh riwayat pemenang. Wajib dipagari
+// konfirmasi berlapis di UI (lihat LotteryControlPage).
+export function resetLottery(): Promise<{ count: number }> {
+  return request<{ count: number }>('POST', '/api/admin/lottery/reset');
 }

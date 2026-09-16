@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   normalizeWhatsapp,
   isValidWhatsapp,
@@ -11,7 +11,16 @@ import {
   parseIso,
   shortCode,
   genToken,
+  secureRandomInt,
 } from './utils';
+
+// crypto is mocked (pass-through) so the lottery tests can assert that
+// secureRandomInt actually reaches crypto.randomInt. Every implementation call
+// still runs the real function, so the rest of this file is unaffected.
+vi.mock('crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('crypto')>();
+  return { ...actual, randomInt: vi.fn(actual.randomInt) };
+});
 
 describe('normalizeWhatsapp', () => {
   it('converts a leading 0 to 62', () => {
@@ -180,5 +189,61 @@ describe('genToken', () => {
   });
   it('is not deterministic across calls', () => {
     expect(genToken()).not.toBe(genToken());
+  });
+});
+
+describe('secureRandomInt', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('always returns an integer within [0, max)', () => {
+    for (const max of [1, 2, 7, 50, 1000]) {
+      for (let i = 0; i < 500; i++) {
+        const n = secureRandomInt(max);
+        expect(Number.isInteger(n)).toBe(true);
+        expect(n).toBeGreaterThanOrEqual(0);
+        expect(n).toBeLessThan(max);
+      }
+    }
+  });
+
+  it('returns 0 for max = 1 (single-entry pool)', () => {
+    for (let i = 0; i < 20; i++) expect(secureRandomInt(1)).toBe(0);
+  });
+
+  it('rejects a max that is not a positive integer', () => {
+    expect(() => secureRandomInt(0)).toThrow(RangeError);
+    expect(() => secureRandomInt(-3)).toThrow(RangeError);
+    expect(() => secureRandomInt(2.5)).toThrow(RangeError);
+    expect(() => secureRandomInt(NaN)).toThrow(RangeError);
+  });
+
+  it('delegates to crypto.randomInt, never Math.random', async () => {
+    const cryptoMod = await import('crypto');
+    const mathSpy = vi.spyOn(Math, 'random');
+    secureRandomInt(10);
+    expect(cryptoMod.randomInt).toHaveBeenCalledWith(10);
+    expect(mathSpy).not.toHaveBeenCalled();
+    mathSpy.mockRestore();
+  });
+
+  // Statistical smoke test, not a strict uniformity proof: with 60k samples
+  // over 6 buckets the expected count is 10k each, and a fair generator lands
+  // every bucket well inside +/-20%. A constant/heavily-skewed generator (or an
+  // off-by-one range) fails this loudly.
+  it('is not grossly biased across a large sample', () => {
+    const buckets = 6;
+    const samples = 60_000;
+    const counts = new Array(buckets).fill(0);
+    for (let i = 0; i < samples; i++) counts[secureRandomInt(buckets)] += 1;
+
+    const expected = samples / buckets;
+    for (const c of counts) {
+      expect(c).toBeGreaterThan(expected * 0.8);
+      expect(c).toBeLessThan(expected * 1.2);
+    }
+    // Every outcome must be reachable — no silently dead index.
+    expect(counts.every((c) => c > 0)).toBe(true);
   });
 });

@@ -70,3 +70,11 @@ export const createCommittee = DEMO_MODE ? mock.createCommittee : real.createCom
 export const setCommitteeActive = DEMO_MODE ? mock.setCommitteeActive : real.setCommitteeActive;
 export const updateCommittee = DEMO_MODE ? mock.updateCommittee : real.updateCommittee;
 export const deleteCommittee = DEMO_MODE ? mock.deleteCommittee : real.deleteCommittee;
+
+// ----- Admin: undian (lottery) ----------------------------------------------
+export const getLotteryPool = DEMO_MODE ? mock.getLotteryPool : real.getLotteryPool;
+export const getLotteryWinners = DEMO_MODE ? mock.getLotteryWinners : real.getLotteryWinners;
+export const drawLotteryWinner = DEMO_MODE ? mock.drawLotteryWinner : real.drawLotteryWinner;
+export const undoLastLotteryDraw = DEMO_MODE ? mock.undoLastLotteryDraw : real.undoLastLotteryDraw;
+export const voidLotteryWinner = DEMO_MODE ? mock.voidLotteryWinner : real.voidLotteryWinner;
+export const resetLottery = DEMO_MODE ? mock.resetLottery : real.resetLottery;

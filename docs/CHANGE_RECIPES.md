@@ -61,6 +61,15 @@ admin). Setelah endpoint backend jalan, tambahkan pasangan fungsi di
 bersamaan), lalu update [API_REFERENCE.md](API_REFERENCE.md) dengan baris
 tabel endpoint baru supaya dokumen tetap akurat.
 
+Kalau endpoint baru butuh **model Prisma baru** (bukan sekadar query atas
+model yang ada), dua langkah tambahan sebelum `routes/`: tambah model di
+`backend/prisma/schema.prisma` lalu `npm run prisma:push` dari `backend/`
+(proyek ini tidak pakai file migrasi — lihat
+[KNOWN_GOTCHAS.md](KNOWN_GOTCHAS.md)), **dan** tambahkan `deleteMany()`
+tabel baru itu ke `resetDb()` di `backend/test/db.ts` supaya integration
+test tidak bocor state antar test. Contoh terbaru yang mengikuti resep ini
+utuh: model `LotteryDraw` + 5 endpoint `/api/admin/lottery/*`.
+
 **Verification:** `npm run build && npm test` di `backend/`; jika ada
 pemanggil baru di frontend, `npm run lint && npm run build && npm run test`
 di root juga.

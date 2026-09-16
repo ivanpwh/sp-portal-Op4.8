@@ -67,6 +67,13 @@ export default {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
         },
+        // Satu nama "jatuh" masuk ke jendela reel undian. Dipakai ulang setiap
+        // nama berganti (lewat key React), jadi durasinya harus jauh lebih
+        // pendek dari jeda tercepat antar-nama di LotteryReel (~55ms).
+        'reel-tick': {
+          '0%': { opacity: '0', transform: 'translateY(55%)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 0.6s ease-out both',
@@ -77,6 +84,7 @@ export default {
         float: 'float 6s ease-in-out infinite',
         'float-slow': 'float 9s ease-in-out infinite',
         shimmer: 'shimmer 1.8s linear infinite',
+        'reel-tick': 'reel-tick 90ms ease-out both',
       },
     },
   },

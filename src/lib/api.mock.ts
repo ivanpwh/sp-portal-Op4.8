@@ -11,6 +11,11 @@
 import type {
   Committee,
   EventSettings,
+  LotteryDrawOptions,
+  LotteryDrawResult,
+  LotteryPoolParticipant,
+  LotteryVoidReason,
+  LotteryWinner,
   NotificationChannel,
   NotificationLog,
   NotificationType,
@@ -25,7 +30,14 @@ import type {
   SpIndukGroup,
   Stats,
 } from '../types';
-import { calculateAge, compareSpCode, normalizeSpCode, normalizeWhatsApp, spInduk } from './format';
+import { MAX_LOTTERY_DRAW_COUNT } from '../types';
+import {
+  calculateAge,
+  compareSpCode,
+  normalizeSpCode,
+  normalizeWhatsApp,
+  spInduk,
+} from './format';
 import { RegistrationClosedError } from './api.errors';
 import { DEMO_MODE } from './mode';
 
@@ -35,6 +47,7 @@ const LS = {
   committees: 'sp.committees',
   event: 'sp.event_settings',
   logs: 'sp.notification_logs',
+  draws: 'sp.lottery_draws', // riwayat pemenang undian
   session: 'sp.session', // auth session (login)
   passwords: 'sp.passwords',
   seeded: 'sp.seeded.v3_2',
@@ -832,4 +845,225 @@ export async function deleteCommittee(id: string): Promise<{ id: string }> {
   }
 
   return delay({ id });
+}
+
+// ===========================================================================
+// UNDIAN (lottery) — mirror mock dari backend/src/services.ts
+//
+// Pool = setiap peserta 'will_attend' yang id-nya belum pernah muncul di
+// LS.draws. Tiap Participant adalah satu entri independen — tidak ada
+// pengelompokan/pembobotan per SP Induk, dan status check-in TIDAK diperhitungkan
+// (sama persis dengan backend).
+//
+// Bentuk yang dikembalikan hanya membawa full_name/nickname/sp_code — sama
+// dengan yang sudah publik lewat getPublicParticipants(). Jangan tambahkan PII.
+// ===========================================================================
+
+/**
+ * Bentuk yang BENAR-BENAR disimpan di localStorage.
+ *
+ * Membatalkan pemenang adalah soft void, bukan penghapusan: barisnya tetap ada
+ * dan hanya ditandai — itulah yang memberi fitur ini jejak audit untuk undian
+ * MAUPUN pembatalan, sama seperti kolom voided_* di backend. Ketiga field ini
+ * dibuang saat dibaca; `LotteryWinner` yang keluar dari modul ini tidak pernah
+ * memuatnya.
+ *
+ * Opsional semua, supaya data lama di localStorage (ditulis sebelum fitur ini
+ * ada) tetap terbaca: tanpa `voided_at`, barisnya otomatis dianggap aktif.
+ */
+interface MockLotteryDraw extends LotteryWinner {
+  voided_at?: string | null;
+  voided_by_name?: string;
+  void_reason?: LotteryVoidReason;
+}
+
+/** Buang kolom audit — bentuk publiknya harus identik dengan backend. */
+function publicDraw(d: MockLotteryDraw): LotteryWinner {
+  return {
+    id: d.id,
+    participant_id: d.participant_id,
+    full_name: d.full_name,
+    nickname: d.nickname,
+    sp_code: d.sp_code,
+    drawn_at: d.drawn_at,
+    drawn_by_name: d.drawn_by_name,
+    round_label: d.round_label ?? '',
+  };
+}
+
+function allDraws(): MockLotteryDraw[] {
+  return read<MockLotteryDraw[]>(LS.draws, []);
+}
+
+/** Hanya baris yang masih aktif — baris yang dibatalkan bukan pemenang. */
+function activeDraws(): MockLotteryDraw[] {
+  return allDraws().filter((d) => !d.voided_at);
+}
+
+/**
+ * Bilangan acak [0, max) dari crypto.getRandomValues — BUKAN Math.random.
+ * Backend memakai crypto.randomInt untuk keputusan yang sama; undian ini
+ * menentukan hadiah nyata untuk keluarga nyata, jadi standar keacakannya
+ * disamakan di kedua implementasi.
+ *
+ * Modulo langsung akan bias ke nilai kecil bila 2^32 tidak habis dibagi max,
+ * jadi nilai di atas batas kelipatan terbesar ditolak dan diundi ulang.
+ */
+function secureRandomInt(max: number): number {
+  const limit = Math.floor(0xffffffff / max) * max;
+  const buf = new Uint32Array(1);
+  let v = 0;
+  do {
+    crypto.getRandomValues(buf);
+    v = buf[0];
+  } while (v >= limit);
+  return v % max;
+}
+
+function poolEntry(p: Participant): LotteryPoolParticipant {
+  return { id: p.id, full_name: p.full_name, nickname: p.nickname, sp_code: p.sp_code };
+}
+
+/**
+ * Anti-join terhadap riwayat undian yang MASIH AKTIF. Baris yang dibatalkan
+ * tidak lagi mengeluarkan siapa pun dari pool — itulah mekanisme di balik undo
+ * dan tombol "kembalikan ke undian".
+ */
+function computePool(): LotteryPoolParticipant[] {
+  const drawn = new Set(activeDraws().map((d) => d.participant_id));
+  return read<Participant[]>(LS.participants, [])
+    .filter((p) => p.attendance_status === 'will_attend' && !drawn.has(p.id))
+    .map(poolEntry)
+    .sort((a, b) => compareSpCode(a.sp_code, b.sp_code));
+}
+
+export function getLotteryPool(): Promise<LotteryPoolParticipant[]> {
+  return delay(computePool());
+}
+
+/** Pemenang yang masih aktif, terbaru dulu. Baris yang dibatalkan tidak muncul. */
+export function getLotteryWinners(): Promise<LotteryWinner[]> {
+  const winners = activeDraws().slice();
+  winners.sort((a, b) => b.drawn_at.localeCompare(a.drawn_at));
+  return delay(winners.map(publicDraw));
+}
+
+/**
+ * Undi satu atau beberapa pemenang sekaligus dan simpan.
+ *
+ * Semua baris dalam satu undian berbagi `drawn_at` yang sama — mereka memang
+ * diundi pada saat yang sama, dan itulah yang membuat satu undian bisa dikenali
+ * sebagai satu batch oleh undoLastLotteryDraw().
+ *
+ * Bila pool lebih kecil dari `count`, pool dikuras dan hasilnya dikembalikan apa
+ * adanya (`requested` > `winners.length`) — undian sebagian, bukan galat. Hanya
+ * pool yang benar-benar kosong yang melempar.
+ */
+export async function drawLotteryWinner(
+  options: LotteryDrawOptions = {},
+): Promise<LotteryDrawResult> {
+  const requested = Math.max(1, Math.min(MAX_LOTTERY_DRAW_COUNT, Math.floor(options.count ?? 1)));
+  const roundLabel = (options.round_label ?? '').trim();
+
+  const available = computePool();
+  if (available.length === 0) throw new Error('Tidak ada peserta tersisa untuk diundi.');
+
+  const drawnAt = nowISO();
+  const drawnBy = getSession()?.committee.name ?? '';
+  const take = Math.min(requested, available.length);
+  const winners: LotteryWinner[] = [];
+
+  for (let i = 0; i < take; i++) {
+    const picked = available.splice(secureRandomInt(available.length), 1)[0];
+    winners.push({
+      id: uid(),
+      // Snapshot — baris ini tetap benar walau Participant-nya nanti diubah/dihapus.
+      participant_id: picked.id,
+      full_name: picked.full_name,
+      nickname: picked.nickname,
+      sp_code: picked.sp_code,
+      drawn_at: drawnAt,
+      drawn_by_name: drawnBy,
+      round_label: roundLabel,
+    });
+  }
+
+  write(LS.draws, [...allDraws(), ...winners]);
+  return delay({ winner: winners[0], winners, remaining: available.length, requested }, 200);
+}
+
+/**
+ * Batalkan SELURUH undian terakhir. Satu undian bisa berisi banyak pemenang, dan
+ * semuanya berbagi `drawn_at` yang sama — membatalkan satu baris acak dari batch
+ * itu akan membingungkan di atas panggung dan mustahil diberi label jujur di
+ * tombol. Semua peserta dalam batch itu kembali ke pool.
+ */
+export async function undoLastLotteryDraw(): Promise<LotteryWinner[]> {
+  const rows = allDraws();
+  const active = rows.filter((d) => !d.voided_at);
+  if (active.length === 0) throw new Error('Belum ada undian untuk dibatalkan.');
+
+  const newest = active.reduce((a, b) => (a.drawn_at >= b.drawn_at ? a : b)).drawn_at;
+  const voidedAt = nowISO();
+  const voidedBy = getSession()?.committee.name ?? '';
+  const batch: LotteryWinner[] = [];
+
+  const next = rows.map((d) => {
+    if (d.voided_at || d.drawn_at !== newest) return d;
+    batch.push(publicDraw(d));
+    return { ...d, voided_at: voidedAt, voided_by_name: voidedBy, void_reason: 'undo' as const };
+  });
+
+  write(LS.draws, next);
+  return delay(batch, 200);
+}
+
+/**
+ * Batalkan SATU pemenang tertentu dan kembalikan dia ke pool — kasus yang tidak
+ * bisa ditangani undo, karena orang yang harus dikeluarkan jarang sekali
+ * pemenang terakhir.
+ */
+export async function voidLotteryWinner(
+  id: string,
+  reason: LotteryVoidReason = 'manual',
+): Promise<LotteryWinner> {
+  const rows = allDraws();
+  const target = rows.find((d) => d.id === id && !d.voided_at);
+  // Pesan sama untuk "tidak ada" dan "sudah dibatalkan": dari sisi panitia
+  // keduanya berarti "orang itu bukan pemenang saat ini".
+  if (!target) throw new Error('Pemenang tidak ditemukan atau sudah dibatalkan.');
+
+  const voidedAt = nowISO();
+  const voidedBy = getSession()?.committee.name ?? '';
+  write(
+    LS.draws,
+    rows.map((d) =>
+      d.id === id ? { ...d, voided_at: voidedAt, voided_by_name: voidedBy, void_reason: reason } : d,
+    ),
+  );
+  return delay(publicDraw(target), 200);
+}
+
+/**
+ * Kosongkan seluruh daftar pemenang: semua baris aktif dibatalkan sekaligus dan
+ * semua peserta kembali ke pool.
+ *
+ * Secara operasional ini tetap tombol merah besar — setelahnya tidak ada yang
+ * menang apa pun dan undo tidak bisa mengembalikan daftarnya. Yang TIDAK lagi
+ * terjadi adalah penghancuran catatan: barisnya tetap tersimpan dengan
+ * `void_reason: 'reset'`. Pemanggil di UI WAJIB tetap memasang konfirmasi
+ * berlapis (ketik ulang kata konfirmasi), bukan satu klik.
+ */
+export async function resetLottery(): Promise<{ count: number }> {
+  const rows = allDraws();
+  const voidedAt = nowISO();
+  const voidedBy = getSession()?.committee.name ?? '';
+  let count = 0;
+  const next = rows.map((d) => {
+    if (d.voided_at) return d;
+    count += 1;
+    return { ...d, voided_at: voidedAt, voided_by_name: voidedBy, void_reason: 'reset' as const };
+  });
+  write(LS.draws, next);
+  return delay({ count }, 200);
 }

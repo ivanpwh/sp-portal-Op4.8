@@ -9,6 +9,7 @@ import { asyncHandler, parseBody } from '../http';
 import {
   committeeDict,
   eventDict,
+  lotteryDrawDict,
   notificationLogDict,
   participantDict,
   sessionDict,
@@ -20,6 +21,8 @@ import {
   committeeToggleSchema,
   committeeUpdateSchema,
   eventSettingsPatchSchema,
+  lotteryDrawSchema,
+  lotteryVoidSchema,
   participantInputSchema,
   participantPatchSchema,
   statusInputSchema,
@@ -417,5 +420,89 @@ adminRouter.delete(
     }
     await prisma.committee.delete({ where: { id: c.id } });
     res.json({ id: c.id });
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Lottery (Undian)
+//
+// Plain committee role is enough — this is an operational tool used live at the
+// event, not account administration, so NO requireSuperAdmin here.
+// requireCommittee already applies to every route in this file (see above).
+//
+// These responses expose only full_name / nickname / sp_code — no
+// whatsapp_number, email, birth_date or address (see lotteryDrawDict).
+// ---------------------------------------------------------------------------
+
+adminRouter.get(
+  '/lottery/pool',
+  asyncHandler(async (_req, res) => {
+    res.json(await services.getLotteryPool());
+  }),
+);
+
+adminRouter.get(
+  '/lottery/winners',
+  asyncHandler(async (_req, res) => {
+    const winners = await services.listLotteryWinners();
+    res.json(winners.map(lotteryDrawDict));
+  }),
+);
+
+// Body is optional: an empty POST still draws exactly one winner with no round
+// label, which is what the original contract did.
+//
+// The response carries BOTH shapes on purpose. `winners` is the real one;
+// `winner` is `winners[0]` kept alive so every existing caller and test stays
+// correct while the frontend migrates. Drop `winner` in a later release, not in
+// the same one that introduces multi-draw.
+adminRouter.post(
+  '/lottery/draw',
+  asyncHandler(async (req, res) => {
+    const body = parseBody(lotteryDrawSchema, req.body);
+    const { draws, remaining, requested } = await services.drawLotteryWinner(
+      req.committee?.name ?? '',
+      { count: body.count, roundLabel: body.round_label },
+    );
+    const winners = draws.map(lotteryDrawDict);
+    // requested > winners.length means the pool ran dry mid-draw. That is a
+    // partial draw, not an error — the UI says so and carries on.
+    res.json({ winner: winners[0], winners, remaining, requested });
+  }),
+);
+
+// Takes back the whole most recent draw, which may be several people at once.
+// Returns the rows that were taken back.
+adminRouter.post(
+  '/lottery/undo',
+  asyncHandler(async (req, res) => {
+    const removed = await services.undoLastLotteryDraw(req.committee?.name ?? '');
+    res.json(removed.map(lotteryDrawDict));
+  }),
+);
+
+// Cancel one specific winner and return them to the pool — the case undo cannot
+// handle, because the person who has to be removed is rarely the last one drawn.
+adminRouter.post(
+  '/lottery/winners/:id/void',
+  asyncHandler(async (req, res) => {
+    const body = parseBody(lotteryVoidSchema, req.body);
+    const removed = await services.voidLotteryWinner(
+      req.params.id,
+      body.reason,
+      req.committee?.name ?? '',
+    );
+    res.json(lotteryDrawDict(removed));
+  }),
+);
+
+// Clears the entire winner list in one press: everyone returns to the pool and
+// undo cannot put the list back. The rows themselves survive as audit records
+// (see resetLottery() in services.ts), but the on-stage consequence is total —
+// the frontend must guard this with layered confirmation.
+adminRouter.post(
+  '/lottery/reset',
+  asyncHandler(async (req, res) => {
+    res.json(await services.resetLottery(req.committee?.name ?? ''));
   }),
 );

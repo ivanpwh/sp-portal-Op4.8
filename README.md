@@ -16,9 +16,11 @@ npm run preview  # pratinjau hasil build
 ```
 
 > **Catatan:** sejak penambahan animasi perayaan, proyek memakai dependensi baru
-> [`lottie-react`](https://www.npmjs.com/package/lottie-react). Jalankan
-> `npm install` sekali lagi setelah menarik perubahan ini agar paket tersebut
-> terpasang.
+> [`lottie-react`](https://www.npmjs.com/package/lottie-react), dan sejak fitur
+> Undian juga [`canvas-confetti`](https://www.npmjs.com/package/canvas-confetti).
+> Jalankan `npm install` sekali lagi setelah menarik perubahan ini agar paket
+> tersebut terpasang. (Drumroll/fanfare undian **tidak** memakai paket atau file
+> audio — bunyinya disintesis lewat Web Audio API di `src/lib/lotterySound.ts`.)
 
 ## Catatan Data Layer (penting)
 
@@ -58,7 +60,7 @@ otomatis dijinakkan bila pengguna mengaktifkan _"kurangi gerakan"_ pada perangka
   `lottie-react`, dibungkus `SafeBoundary` agar halaman tetap aman bila animasi
   gagal dimuat, dan dilewati saat pengguna meminta kurangi gerakan.
 
-Keyframe & utilitas animasi (mis. `animate-fade-in-up`, `animate-pop-in`,
+Keyframe & utilitas animasi (mis. `animate-fade-in-up`, `animate-pop-in`, `animate-reel-tick`,
 `animate-float`, `animate-shimmer`) didefinisikan di
 [`tailwind.config.js`](tailwind.config.js). Komponen pendukung baru
 (`CountUp`, `usePrefersReducedMotion`, `SafeBoundary`) ada di
@@ -88,6 +90,12 @@ Keyframe & utilitas animasi (mis. `animate-fade-in-up`, `animate-pop-in`,
 - **Broadcast pengingat massal** (segmentasi, WA/Email, templat H-7/H-1/Hari-H).
 - **Log notifikasi** dengan status & **retry**.
 - **Check-in Hari-H**: cari/scan kode, tandai hadir.
+- **Undian peserta**: undi pemenang dari peserta yang akan hadir (yang sudah
+  menang otomatis keluar dari undian berikutnya), lengkap dengan animasi reel
+  nama berputar, drumroll/fanfare, dan confetti. Tersedia **tampilan layar
+  besar** terpisah untuk proyektor yang tersinkron dengan halaman kontrol lewat
+  `BroadcastChannel` (satu laptop, dua tab — tanpa server real-time). Undian
+  terakhir bisa dibatalkan; reset seluruh riwayat dipagari konfirmasi berlapis.
 - **Pengaturan acara**: nama, tanggal, lokasi/peta, kuota, tenggat, buka/tutup,
   serta **aktif/nonaktif fitur QR check-in**.
 - **Akun panitia** (super-admin) — **CRUD penuh**: tambah, **ubah**
@@ -111,7 +119,7 @@ src/
   components/      # UI primitives & layout (PublicLayout, AdminLayout)
   lib/             # api (mock), auth context, format helpers, constants
   pages/public/    # Home, Register, Success, Manage, Participants
-  pages/admin/     # Login, Dashboard, Detail, Statistics, Broadcast,
+  pages/admin/     # Login, Dashboard, Detail, Statistics, Broadcast, Lottery,
                    # Checkin, NotificationLogs, EventSettings, Committees
   index.css        # base Tailwind, latar gradient-mesh, utilitas animasi
   types.ts         # tipe domain (mengikuti skema DB di PRD)

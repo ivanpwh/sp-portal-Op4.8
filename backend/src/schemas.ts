@@ -89,6 +89,19 @@ export const committeeToggleSchema = z.object({
   is_active: z.boolean(),
 });
 
+// Undian. Both bodies are optional in practice — an empty POST still draws one
+// winner with no round label, which is what the old contract did.
+export const lotteryDrawSchema = z.object({
+  count: z.number().int().min(1).max(20).default(1),
+  // Shown on the projector to a whole room, so it is length-capped and must
+  // never be used for names or phone numbers (see CLAUDE.md).
+  round_label: z.string().trim().max(60).default(''),
+});
+
+export const lotteryVoidSchema = z.object({
+  reason: z.enum(['undo', 'manual', 'reset']).default('manual'),
+});
+
 export const broadcastInputSchema = z.object({
   induk: z.string().nullish(),
   onlyAttending: z.boolean().default(true), // camelCase alias from the frontend

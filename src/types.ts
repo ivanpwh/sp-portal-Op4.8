@@ -172,3 +172,89 @@ export interface PublicSpIndukGroup {
   induk: string;
   participants: PublicParticipant[];
 }
+
+// ---------------------------------------------------------------------------
+// Undian (lottery) — mirrors backend/src/serializers.ts:lotteryDrawDict and
+// services.ts:LotteryPoolEntry.
+//
+// Kedua bentuk di bawah SENGAJA hanya membawa identitas yang sudah publik lewat
+// GET /api/participants/public (full_name, nickname, sp_code). Nama pemenang
+// ditampilkan di layar besar publik saat acara, jadi TIDAK BOLEH ada
+// whatsapp_number / email / birth_date / address di sini — jangan tambahkan.
+// ---------------------------------------------------------------------------
+
+// Satu peserta yang masih berhak diundi (belum pernah menang).
+export interface LotteryPoolParticipant {
+  id: string;
+  full_name: string;
+  nickname: string;
+  sp_code: string;
+}
+
+// Satu baris riwayat pemenang. full_name/nickname/sp_code adalah SNAPSHOT saat
+// menang — tetap utuh walau Participant-nya kemudian diedit/dihapus, karena
+// participant_id hanya soft reference (tanpa FK, sama seperti
+// NotificationLog.session_id).
+export interface LotteryWinner {
+  id: string;
+  participant_id: string;
+  full_name: string;
+  nickname: string;
+  sp_code: string;
+  drawn_at: string; // ISO 8601
+  drawn_by_name: string; // nama panitia yang menekan tombol undi
+  round_label: string; // babak/hadiah saat dia menang, mis. "Hadiah Utama"
+  // Kolom voided_at / voided_by_name / void_reason SENGAJA tidak ada di sini.
+  // Pembatalan dicatat di basis data sebagai jejak audit dan tidak pernah
+  // diserialisasi ke klien — GET /lottery/winners hanya mengembalikan pemenang
+  // yang masih aktif.
+}
+
+// Batas atas jumlah pemenang per undian. Dicerminkan oleh lotteryDrawSchema
+// (backend) dan services.MAX_DRAW_COUNT — ubah ketiganya bersamaan.
+export const MAX_LOTTERY_DRAW_COUNT = 20;
+
+export interface LotteryDrawOptions {
+  count?: number;
+  round_label?: string;
+}
+
+// Hasil POST /api/admin/lottery/draw.
+export interface LotteryDrawResult {
+  // Alias dari winners[0], dipertahankan sementara agar pemanggil lama tetap
+  // benar. Untuk kode baru pakai `winners`.
+  winner: LotteryWinner;
+  winners: LotteryWinner[];
+  remaining: number;
+  // Jumlah yang DIMINTA. requested > winners.length berarti pool habis di
+  // tengah undian — itu undian sebagian, bukan galat.
+  requested: number;
+}
+
+export type LotteryVoidReason = 'undo' | 'manual' | 'reset';
+
+// ---------------------------------------------------------------------------
+// Pengaturan babak undian.
+//
+// camelCase, bukan snake_case, karena bentuk ini TIDAK PERNAH menyentuh API —
+// ia hidup di localStorage tab kontrol dan disiarkan ke tab layar besar lewat
+// BroadcastChannel. Hanya `roundLabel` dan `count` yang berpengaruh ke server,
+// dan keduanya dikirim terpisah sebagai LotteryDrawOptions.
+// ---------------------------------------------------------------------------
+
+export type LotteryEffect = 'none' | 'drumroll';
+export type LotteryNameScale = 'sedang' | 'besar' | 'raksasa';
+
+export interface LotterySettings {
+  roundLabel: string;
+  count: number;
+  /** 0 = langsung tampilkan hasil, tanpa animasi reel. */
+  durationMs: number;
+  scale: LotteryNameScale;
+  effect: LotteryEffect;
+}
+
+/** Satu preset babak yang disimpan panitia sebelum acara. */
+export interface LotteryPreset extends LotterySettings {
+  name: string;
+}

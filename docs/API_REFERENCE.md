@@ -7,10 +7,10 @@
 > field request/response satu endpoint. **Field JSON semuanya snake_case**
 > meski model Prisma memakai camelCase — lihat `backend/src/serializers.ts`.
 >
-> **Jumlah endpoint terverifikasi (2026-08-30):** 35 total —
-> `public.ts` 8, `auth.ts` 3, `admin.ts` 24 (dihitung dari
+> **Jumlah endpoint terverifikasi (2026-08-30):** 40 total —
+> `public.ts` 8, `auth.ts` 3, `admin.ts` 29 (dihitung dari
 > `grep -oE '(publicRouter|authRouter|adminRouter)\.(get|post|patch|delete)\(' backend/src/routes/*.ts | wc -l`
-> per file). Tabel di bawah berisi persis 35 baris endpoint.
+> per file). Tabel di bawah berisi persis 40 baris endpoint.
 >
 > **Mounting** (`backend/src/app.ts`): `publicRouter` di `/api`, `authRouter`
 > di `/api/auth`, `adminRouter` di `/api/admin`. Semua route `adminRouter`
@@ -105,6 +105,60 @@
 | `PATCH /api/admin/event` | `eventSettingsPatchSchema` (semua optional): `event_name, tagline, event_date, location, address, maps_query, registration_deadline (nullable), registration_open (bool), qr_checkin_enabled (bool)` | `eventDict` | `updateEventSettings()` |
 
 `eventDict`: `{ id, event_name, tagline, event_date, location, address, maps_query, registration_deadline, registration_open, qr_checkin_enabled, updated_at }`.
+
+### Lottery / Undian — `requireCommittee` saja, **tanpa `requireSuperAdmin`**
+
+Alat operasional yang dipakai live saat acara, bukan administrasi akun — jadi
+role `committee` biasa sudah cukup. Model `LotteryDraw` (`lottery_draws`)
+menyimpan **snapshot** `full_name`/`nickname`/`sp_code` peserta saat menang, dan
+`participant_id` adalah **soft reference** (tanpa `@relation`/FK, pola sama
+dengan `NotificationLog.sessionId`) — riwayat pemenang tetap utuh walau
+`Participant`-nya kemudian diedit atau dihapus lewat
+`DELETE /api/admin/participants/:id`.
+
+**Membatalkan pemenang adalah soft void, bukan DELETE.** Kolom `voided_at`,
+`voided_by_name`, dan `void_reason` (`'undo' | 'manual' | 'reset'`) menandai
+baris alih-alih menghapusnya, sehingga setiap pengundian **dan** setiap
+pembatalan meninggalkan jejak. `voided_at: null` berarti "pemenang aktif" —
+itulah saringan yang dipakai `getLotteryPool()` dan `listLotteryWinners()`.
+Ketiga kolom itu **tidak pernah diserialisasi ke klien**: jejak audit hidup di
+basis data dan tidak dirender di mana pun.
+
+| Method + Path | Request body | Response shape | Error eksplisit | Frontend caller |
+|---|---|---|---|---|
+| `GET /api/admin/lottery/pool` | — | `services.getLotteryPool()`: `{ id, full_name, nickname, sp_code }[]` — peserta `will_attend` yang tidak punya baris `lottery_draws` **aktif** (anti-join dengan `voidedAt: null`), urut `compareSpCode`. Status check-in **tidak** berpengaruh | — | `getLotteryPool()` — `LotteryControlPage` |
+| `GET /api/admin/lottery/winners` | — | `lotteryDrawDict[]` — hanya pemenang **aktif**, urut `drawn_at desc` | — | `getLotteryWinners()` — `LotteryControlPage` |
+| `POST /api/admin/lottery/draw` | `{ count?: 1..20 = 1, round_label?: string (<=60) = '' }` — body opsional; POST kosong = satu pemenang tanpa label | `{ winner, winners: lotteryDrawDict[], remaining, requested }`. `winner` adalah **alias `winners[0]`**, dipertahankan sementara agar pemanggil lama tetap benar — pakai `winners` untuk kode baru. `requested > winners.length` berarti pool habis di tengah undian: itu **undian sebagian, bukan galat**. Semua baris dalam satu undian berbagi `drawn_at` yang sama | **400** `"Tidak ada peserta tersisa untuk diundi."` jika pool kosong; **422** jika `count` di luar 1..20 | `drawLotteryWinner()` — `LotteryControlPage` (dipanggil SEKALI per undian; animasi reel murni penundaan di klien) |
+| `POST /api/admin/lottery/undo` | — | `lotteryDrawDict[]` — SELURUH undian terakhir (semua baris aktif yang berbagi `drawn_at` terbesar), bukan satu baris. Semua pesertanya kembali ke pool | **400** `"Belum ada undian untuk dibatalkan."` jika tidak ada pemenang aktif | `undoLastLotteryDraw()` — `LotteryControlPage` (di balik Modal konfirmasi) |
+| `POST /api/admin/lottery/winners/:id/void` | `{ reason?: 'undo' \| 'manual' \| 'reset' = 'manual' }` | `lotteryDrawDict` dari baris yang dibatalkan — pesertanya kembali ke pool. Untuk kasus yang tidak bisa ditangani undo: yang harus dikeluarkan jarang sekali pemenang terakhir | **404** `"Pemenang tidak ditemukan atau sudah dibatalkan."` | `voidLotteryWinner()` — `LotteryControlPage` (tombol "Kembalikan" per baris) |
+| `POST /api/admin/lottery/reset` | — | `{ count: number }` — jumlah pemenang yang dikosongkan. Mengosongkan SELURUH daftar pemenang sekaligus; `/lottery/undo` **tidak** bisa memulihkannya. Barisnya sendiri tetap tersimpan sebagai jejak audit (`void_reason: 'reset'`), tapi tidak muncul lagi di endpoint mana pun. Frontend wajib memasang konfirmasi berlapis, bukan satu klik | — | `resetLottery()` — `LotteryControlPage` (di balik konfirmasi BERLAPIS: wajib mengetik ulang kata `RESET`) |
+
+`lotteryDrawDict`: `{ id, participant_id, full_name, nickname, sp_code, drawn_at, drawn_by_name, round_label }`
+(`backend/src/serializers.ts`). **Tidak ada PII di sini** — tidak pernah ada
+`whatsapp_number`, `email`, `birth_date`, `address`, `address_detail`,
+`last_occupation`, atau `accommodation` di endpoint lottery manapun; field yang
+diekspos persis sama dengan yang sudah publik lewat
+`GET /api/participants/public`. Diregresi eksplisit di
+`backend/src/routes/admin.test.ts` (`FORBIDDEN_PII`).
+
+Catatan implementasi (`backend/src/services.ts`):
+
+- Pemenang dipilih dengan `secureRandomInt()` (`backend/src/utils.ts`, wrapper
+  `crypto.randomInt`) — **bukan `Math.random`**.
+- `drawLotteryWinner()` menghitung ulang pool **di dalam** satu
+  `prisma.$transaction` ber-isolation `Serializable` lalu me-retry sekali saat
+  write conflict (P2034), supaya tombol undi yang diklik dobel tidak bisa
+  menghasilkan pemenang ganda.
+- `drawn_by_name` di-snapshot dari `req.committee.name` untuk akuntabilitas
+  (bukan FK ke `Committee`).
+
+Catatan sisi frontend: **hanya `LotteryControlPage` (`/admin/undian`) yang
+memanggil kelima endpoint di atas.** Halaman layar besar
+`LotteryPresentPage` (`/admin/undian/layar`) tidak pernah memanggil API undian
+— ia hanya menampilkan state yang dikirim halaman kontrol lewat
+`BroadcastChannel` (`src/lib/lotteryChannel.ts`), sehingga mustahil ada dua tab
+yang meminta undian ke server secara bersamaan. Keduanya tetap di balik
+`RequireAuth`.
 
 ### Committees — **`requireSuperAdmin`** di setiap route berikut
 

@@ -22,6 +22,9 @@ export async function dbAvailable(): Promise<boolean> {
 
 /** Delete all rows from every table, in FK-safe order. Call in beforeEach/afterEach. */
 export async function resetDb(): Promise<void> {
+  // lottery_draws + notification_logs hold only soft references (no FK), so they
+  // can go first regardless.
+  await prisma.lotteryDraw.deleteMany();
   await prisma.notificationLog.deleteMany();
   await prisma.participant.deleteMany();
   await prisma.registrationSession.deleteMany();
