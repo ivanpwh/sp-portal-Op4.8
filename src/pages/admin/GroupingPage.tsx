@@ -146,18 +146,27 @@ export default function GroupingPage() {
                     saja cukup membuat seluruh baris setinggi delapan baris teks.
                     Lebar tetap membuat tiap baris peserta persis satu baris.
 
-                    Kolom "Umur / Tgl Lahir" dan "Menginap" diberi lebar lebih
-                    longgar karena isinya punya batas atas yang diketahui —
-                    tanggal Indonesia terpanjang ("13 September 1974") dan opsi
-                    menginap terpanjang ("Rumah Sendiri (warga lokal)", lihat
-                    ACCOMMODATION_OPTIONS di src/lib/constants.ts) — sehingga
-                    keduanya selalu tampil utuh tanpa elipsis. <Truncated> tetap
-                    dipakai di sana sebagai jaring pengaman: `accommodation` di
-                    backend bertipe string bebas, bukan enum, jadi nilai di luar
-                    daftar masih mungkin masuk dan lebih baik dipotong rapi
-                    daripada meluber ke kolom sebelah.
+                    Empat kolom dilebihkan supaya isinya tidak pernah terpotong:
+
+                    - Umur / Tgl Lahir (230px) — maksimum "100 th · 13 September
+                      1974".
+                    - Menginap (230px) — opsi terpanjang di ACCOMMODATION_OPTIONS
+                      (src/lib/constants.ts), "Rumah Sendiri (warga lokal)".
+                    - WA / HP (170px) — isValidWhatsapp() di backend/src/utils.ts
+                      membatasi nomor pada /^62\d{8,13}$/, jadi paling panjang 15
+                      digit.
+                    - Email (320px) — muat ~39 karakter, cukup untuk alamat yang
+                      wajar; ini satu-satunya dari keempatnya yang tidak punya
+                      batas atas di skema.
+
+                    <Truncated> tetap dipakai di keempatnya sebagai jaring
+                    pengaman. `accommodation` dan `email` divalidasi sebagai
+                    z.string() bebas (backend/src/schemas.ts), bukan enum atau
+                    string berbatas, jadi nilai di luar dugaan masih bisa masuk —
+                    lebih baik dipotong rapi dengan tooltip daripada meluber
+                    menimpa kolom sebelah.
                   */}
-                  <table className="w-full min-w-[1540px] table-fixed text-left text-sm">
+                  <table className="w-full min-w-[1690px] table-fixed text-left text-sm">
                     <colgroup>
                       <col className="w-[200px]" />
                       <col className="w-[130px]" />
@@ -165,8 +174,8 @@ export default function GroupingPage() {
                       <col className="w-[230px]" /> {/* Umur / Tgl Lahir — lihat catatan di atas */}
                       <col className="w-[150px]" />
                       <col className="w-[230px]" /> {/* Menginap — lihat catatan di atas */}
-                      <col className="w-[200px]" />
-                      <col className="w-[140px]" />
+                      <col className="w-[320px]" /> {/* Email — lihat catatan di atas */}
+                      <col className="w-[170px]" /> {/* WA / HP — lihat catatan di atas */}
                     </colgroup>
                     <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                       <tr>
