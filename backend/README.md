@@ -22,8 +22,16 @@ npm run prisma:push           # sinkronkan schema ke database
 npm run dev                   # jalankan server (default :8000)
 ```
 
-Saat pertama dijalankan, DB di-seed otomatis: 1 super-admin
-(`admin@spportal.id` / `admin123`) + setelan event default.
+Saat dijalankan lewat `npm run dev` / `npm start`, DB di-seed otomatis pada
+startup: 1 super-admin (`admin@spportal.id` / `admin123`) + setelan event
+default.
+
+> **Di produksi (Vercel) seed TIDAK otomatis.** Handler serverless sengaja
+> tidak memanggil `bootstrap()` supaya tiap kontainer baru tidak membayar dua
+> query lintas jaringan sebelum permintaan pertamanya dilayani. Setelah
+> `npm run prisma:push` ke database baru, jalankan **`npm run db:seed` sekali**
+> dengan env produksi. Melewatkannya berarti aplikasi hidup tanpa satu pun
+> super-admin dan tanpa setelan event.
 
 ## Skrip
 
@@ -33,6 +41,7 @@ Saat pertama dijalankan, DB di-seed otomatis: 1 super-admin
 | `npm run build` | `prisma generate` + kompilasi TypeScript ke `dist/`. |
 | `npm start` | Jalankan hasil build (`node dist/server.js`). |
 | `npm run prisma:push` | Sinkronkan schema ke database (pakai `DIRECT_URL`). |
+| `npm run db:seed` | Semai super-admin + setelan event (wajib sekali di produksi). |
 | `npm run prisma:studio` | GUI untuk melihat/mengubah data. |
 | `npm test` | Jalankan seluruh test suite (Vitest). |
 | `npm run test:unit` | Hanya test unit murni (utils/schemas/security), tanpa DB. |
@@ -68,6 +77,38 @@ psql postgresql://postgres:postgres@localhost:5433/sp_portal_dev
 Atau via Prisma Studio (`npm run prisma:studio`) setelah `DATABASE_URL` di
 `.env` menunjuk ke instance Docker ini.
 
+## Catatan Operasional Produksi
+
+### Region fungsi harus sedaerah dengan database
+
+Fungsi Vercel dijalankan di **hnd1 (Tokyo)** agar sedaerah dengan database
+Supabase di `ap-northeast-1`. Ini bukan preferensi kosmetik: saat fungsi masih
+berjalan di default `iad1` (Virginia), setiap query membayar satu perjalanan
+lintas Pasifik dan `GET /api/event/status` terukur **2,9 detik**. Setelah
+dipindah ke Tokyo, endpoint yang sama menjadi **0,24 detik**.
+
+Bila database dipindahkan, **pindahkan region fungsinya juga.** Jarak antara
+keduanya adalah biaya yang dibayar berulang kali pada setiap query.
+
+### Seed wajib dijalankan manual
+
+```bash
+npm run db:seed              # lokal (butuh devDependency tsx)
+node dist/seed.cli.js        # produksi, setelah npm run build
+```
+
+### Risiko jeda otomatis Supabase
+
+Proyek Supabase tier gratis **dijeda otomatis** setelah beberapa hari tanpa
+aktivitas, dan permintaan pertama setelahnya bisa memakan belasan detik atau
+gagal. Portal pendaftaran reuni punya pola trafik yang persis paling rentan:
+sepi berminggu-minggu, lalu ramai mendadak saat undangan disebar.
+
+- Cara paling aman: naikkan ke tier berbayar sebelum undangan disebar.
+- Alternatif: cron/uptime-pinger berkala. **Arahkan ke `/api/event`, bukan
+  `/api/health`** — `/api/health` sengaja tidak menyentuh database sama
+  sekali, sehingga tidak akan mencegah jeda meski terus dipanggil.
+
 ## Keamanan Produksi (Supabase RLS)
 
 `prisma/rls-setup.sql` mengaktifkan **Row-Level Security (RLS)** Postgres pada
@@ -101,6 +142,7 @@ src/
   middleware/auth.ts
   routes/{public,auth,admin}.ts
   seed.ts          # bootstrap admin + event
+  seed.cli.ts      # entry `npm run db:seed` (sekali jalan saat deploy)
   app.ts / server.ts
 prisma/
   schema.prisma    # skema database (PostgreSQL)

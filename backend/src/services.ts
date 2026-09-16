@@ -131,16 +131,22 @@ export async function logNotification(
 // ---------------------------------------------------------------------------
 
 export async function computeRegistrationStatus() {
-  const ev = await getEvent();
-  const sessions = await prisma.registrationSession.findMany({
-    include: { participants: true },
-  });
-  const activeCount = sessions.filter((s) =>
-    s.participants.some((p) => p.attendanceStatus === 'will_attend'),
-  ).length;
-  const totalPeople = await prisma.participant.count({
-    where: { attendanceStatus: 'will_attend' },
-  });
+  // Ketiganya saling bebas, jadi dijalankan berbarengan — bukan tiga await
+  // berurutan yang masing-masing menunggu perjalanan ke database.
+  //
+  // activeCount memakai count() dengan filter relasi, BUKAN findMany({ include:
+  // participants }) lalu .filter().length seperti sebelumnya: bentuk lama
+  // menarik setiap sesi beserta seluruh pesertanya melintasi jaringan semata-mata
+  // untuk mengukur panjang sebuah array, dan biayanya tumbuh seiring pendaftar.
+  const [ev, activeCount, totalPeople] = await Promise.all([
+    getEvent(),
+    prisma.registrationSession.count({
+      where: { participants: { some: { attendanceStatus: 'will_attend' } } },
+    }),
+    prisma.participant.count({
+      where: { attendanceStatus: 'will_attend' },
+    }),
+  ]);
 
   let open = true;
   let reason: 'open' | 'closed_manual' | 'past_deadline' = 'open';
@@ -201,6 +207,44 @@ export async function listSpInduk(): Promise<string[]> {
 }
 
 /**
+ * Prisma select untuk jalur publik: TEPAT lima kolom yang benar-benar dikirim,
+ * tidak lebih. Sengaja tidak memakai groupedBySpInduk() — fungsi itu melayani
+ * admin dan menarik seluruh baris sesi (termasuk manageToken) beserta seluruh
+ * kolom peserta (birthDate, address, kontak mentah) hanya untuk dibuang lagi di
+ * sini. manageToken adalah capability token: siapa pun yang memegangnya bisa
+ * membatalkan pendaftaran orang lain, jadi menariknya ke memori pada jalur yang
+ * TIDAK butuh login memperluas permukaan risiko tanpa satu pun manfaat.
+ *
+ * Relasi Participant.session wajib + onDelete: Cascade, jadi peserta tanpa sesi
+ * mustahil ada — itulah sebabnya tabel sesi tidak perlu ikut ditarik hanya untuk
+ * memeriksa keberadaannya, seperti yang dilakukan groupedBySpInduk().
+ */
+const PUBLIC_PARTICIPANT_SELECT = {
+  fullName: true,
+  nickname: true,
+  spCode: true,
+  whatsappNumber: true,
+  email: true,
+} as const;
+
+/** Penyamaran kontak terjadi DI SINI, sebelum data meninggalkan proses. */
+function publicEntry(p: {
+  fullName: string;
+  nickname: string;
+  spCode: string;
+  whatsappNumber: string | null;
+  email: string | null;
+}) {
+  return {
+    full_name: p.fullName,
+    nickname: p.nickname,
+    sp_code: p.spCode,
+    whatsapp_number: maskWhatsapp(p.whatsappNumber),
+    email: maskEmail(p.email),
+  };
+}
+
+/**
  * The /peserta list, for GET /api/participants/public — which requires NO login.
  *
  * Contact details are masked HERE, in the service, not in the page that renders
@@ -211,16 +255,23 @@ export async function listSpInduk(): Promise<string[]> {
  * no mailto), so nothing is lost by never sending them.
  */
 export async function publicParticipants() {
-  const groups = await groupedBySpInduk(true);
-  return groups.map((g) => ({
-    induk: g.induk,
-    participants: g.participants.map((p) => ({
-      full_name: p.full_name,
-      nickname: p.nickname,
-      sp_code: p.sp_code,
-      whatsapp_number: maskWhatsapp(p.whatsapp_number),
-      email: maskEmail(p.email),
-    })),
+  // Penyaringan dikerjakan database lewat `where`, bukan .filter() setelah
+  // seluruh tabel ditarik — biaya yang tumbuh linear terhadap jumlah pendaftar.
+  const rows = await prisma.participant.findMany({
+    where: { attendanceStatus: 'will_attend' },
+    select: PUBLIC_PARTICIPANT_SELECT,
+  });
+
+  const groups = new Map<string, ReturnType<typeof publicEntry>[]>();
+  for (const p of rows) {
+    const key = spInduk(p.spCode);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(publicEntry(p));
+  }
+
+  return [...groups.keys()].sort(compareSpCode).map((induk) => ({
+    induk,
+    participants: groups.get(induk)!.sort((a, b) => compareSpCode(a.sp_code, b.sp_code)),
   }));
 }
 

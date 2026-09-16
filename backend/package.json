@@ -11,6 +11,7 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
+    "db:seed": "tsx src/seed.cli.ts",
     "prisma:studio": "prisma studio",
     "test": "vitest run",
     "test:unit": "vitest run src/utils.test.ts src/schemas.test.ts src/security.test.ts"
