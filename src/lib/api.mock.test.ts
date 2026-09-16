@@ -14,7 +14,7 @@ import {
   undoLastLotteryDraw,
   resetLottery,
 } from './api.mock';
-import { RegistrationClosedError } from './api.errors';
+import { DuplicateSpCodeError, RegistrationClosedError } from './api.errors';
 import type { Committee, EventSettings } from '../types';
 
 const LS_EVENT = 'sp.event_settings';
@@ -100,6 +100,58 @@ describe('submitRegistration', () => {
 // mode this mock IS the backend, so it must mask contact details too. If it
 // stopped, the portfolio build would hand out the seed data's contacts in full
 // and the two data layers would disagree about what "public" means.
+// Cerminan backend/src/routes/public.test.ts. Di mode demo mock inilah
+// backendnya, jadi aturannya harus sama persis — kalau tidak, build portofolio
+// akan menerima pendaftaran ganda yang ditolak build nyata.
+describe('submitRegistration — Kode SP ganda', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    seedOpenEvent();
+  });
+
+  it('menolak sekali saat Kode SP sudah terdaftar', async () => {
+    await submitRegistration({ privacy_consent: true, participants: [validParticipant] });
+
+    await expect(
+      submitRegistration({ privacy_consent: true, participants: [validParticipant] }),
+    ).rejects.toThrow(/sudah terdaftar/i);
+  });
+
+  it('menerima kiriman ulang yang membawa acknowledge_duplicate', async () => {
+    await submitRegistration({ privacy_consent: true, participants: [validParticipant] });
+
+    const res = await submitRegistration({
+      privacy_consent: true,
+      participants: [validParticipant],
+      acknowledge_duplicate: true,
+    });
+    expect(res.participants).toHaveLength(1);
+  });
+
+  it('melempar DuplicateSpCodeError, bukan Error biasa', async () => {
+    await submitRegistration({ privacy_consent: true, participants: [validParticipant] });
+    // Identitas kelasnya yang membuat RegisterPage bisa menawarkan tombol
+    // "Lanjutkan" alih-alih pesan merah buntu.
+    await expect(
+      submitRegistration({ privacy_consent: true, participants: [validParticipant] }),
+    ).rejects.toBeInstanceOf(DuplicateSpCodeError);
+  });
+
+  it('tidak menganggap peserta yang sudah dibatalkan sebagai bentrokan', async () => {
+    const first = await submitRegistration({
+      privacy_consent: true,
+      participants: [validParticipant],
+    });
+    await cancelRegistrationByToken(first.manage_token);
+
+    const res = await submitRegistration({
+      privacy_consent: true,
+      participants: [validParticipant],
+    });
+    expect(res.participants).toHaveLength(1);
+  });
+});
+
 describe('getPublicParticipants', () => {
   beforeEach(() => {
     localStorage.clear();

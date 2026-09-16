@@ -20,6 +20,16 @@ export const registrationInputSchema = z.object({
   privacy_consent: z.boolean().default(false),
   participants: z.array(participantInputSchema).default([]),
   website: z.string().nullish(), // honeypot — must stay empty
+  // Pendaftaran dengan Kode SP yang sudah terdaftar DITOLAK sekali dengan 409,
+  // lalu diterima bila dikirim ulang dengan bendera ini. Peringatan, bukan
+  // larangan: dua orang berbeda bisa saja keliru memakai kode yang sama, dan
+  // memblokir mereka di hari terakhir pendaftaran lebih merugikan daripada satu
+  // baris ganda yang bisa dirapikan panitia.
+  //
+  // Ditegakkan di SERVER, bukan hanya di layar: peringatan yang cuma ada di
+  // komponen akan terlewat oleh siapa pun yang memuat ulang atau memakai
+  // klien lain.
+  acknowledge_duplicate: z.boolean().default(false),
 });
 
 export const participantUpdateItemSchema = participantInputSchema.extend({

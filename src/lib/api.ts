@@ -16,7 +16,7 @@ import { DEMO_MODE } from './mode';
 
 // Re-export error & flag agar komponen bisa pakai `instanceof` dan menampilkan
 // indikator mode demo bila perlu.
-export { RegistrationClosedError } from './api.errors';
+export { DuplicateSpCodeError, RegistrationClosedError } from './api.errors';
 export { DEMO_MODE } from './mode';
 
 // Tipe (sama di kedua mode) — diekspor dari implementasi mock.

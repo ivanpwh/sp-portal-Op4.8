@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   getEventSettings,
   getRegistrationStatus,
+  DuplicateSpCodeError,
   RegistrationClosedError,
   submitRegistration,
 } from '../../lib/api';
@@ -63,6 +64,10 @@ export default function RegisterPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  // Peringatan Kode SP ganda. Disimpan terpisah dari serverError karena ia BUKAN
+  // kegagalan: pendaftarannya masih bisa diteruskan, dan menampilkannya sebagai
+  // galat merah buntu akan membuat orang menyerah di tengah formulir.
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -125,9 +130,10 @@ export default function RegisterPage() {
     return pe.every((e) => Object.keys(e).length === 0) && !consentErr;
   }
 
-  async function onSubmit(ev: React.FormEvent) {
+  async function onSubmit(ev: React.FormEvent, acknowledgeDuplicate = false) {
     ev.preventDefault();
     setServerError(null);
+    if (!acknowledgeDuplicate) setDuplicateWarning(null);
     if (!validate()) {
       setTimeout(
         () =>
@@ -142,6 +148,7 @@ export default function RegisterPage() {
     const input: RegistrationInput = {
       privacy_consent: consent,
       website,
+      acknowledge_duplicate: acknowledgeDuplicate,
       participants: participants.map((p) => ({
         full_name: p.full_name,
         nickname: p.nickname,
@@ -160,6 +167,7 @@ export default function RegisterPage() {
       navigate(`/sukses/${session.manage_token}`);
     } catch (err) {
       if (err instanceof RegistrationClosedError) setServerError(err.message);
+      else if (err instanceof DuplicateSpCodeError) setDuplicateWarning(err.message);
       else setServerError((err as Error).message || 'Terjadi kesalahan. Coba lagi.');
     } finally {
       setSubmitting(false);
@@ -191,6 +199,37 @@ export default function RegisterPage() {
           bertanda <span className="text-red-600">*</span> wajib diisi.
         </p>
       </div>
+
+      {duplicateWarning && (
+        <div className="mb-5">
+          {/* Peringatan, bukan penghalang. Kode SP ganda paling sering berarti
+              pendaftar kehilangan tautan kelolanya lalu mendaftar ulang — tapi
+              bisa juga dua orang berbeda yang kodenya keliru sama, dan
+              memblokir mereka di hari terakhir lebih merugikan daripada satu
+              baris ganda yang bisa dirapikan panitia. */}
+          <Alert variant="warning" title="Kode SP ini sudah terdaftar">
+            {duplicateWarning}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                loading={submitting}
+                onClick={(e) => void onSubmit(e, true)}
+              >
+                Lanjutkan pendaftaran
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDuplicateWarning(null)}
+              >
+                Periksa lagi
+              </Button>
+            </div>
+          </Alert>
+        </div>
+      )}
 
       {serverError && (
         <div className="mb-5">

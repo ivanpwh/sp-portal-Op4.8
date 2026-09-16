@@ -41,7 +41,7 @@ import {
   normalizeWhatsApp,
   spInduk,
 } from './format';
-import { RegistrationClosedError } from './api.errors';
+import { DuplicateSpCodeError, RegistrationClosedError } from './api.errors';
 import { DEMO_MODE } from './mode';
 
 const LS = {
@@ -331,6 +331,25 @@ export async function submitRegistration(input: RegistrationInput): Promise<Sess
 
   const sessions = read<RegistrationSession[]>(LS.sessions, []);
   const allParts = read<Participant[]>(LS.participants, []);
+
+  // Cerminan services.findDuplicateSpCodes() di backend. Peringatan sekali
+  // jalan: tolak bila ada Kode SP yang sudah terdaftar dan masih akan hadir,
+  // lalu terima kiriman ulang yang membawa acknowledge_duplicate. Peserta yang
+  // dibatalkan tidak dihitung — mendaftar ulang setelah membatalkan itu sah.
+  if (!input.acknowledge_duplicate) {
+    const taken = new Set(
+      allParts.filter((p) => p.attendance_status !== 'cancelled').map((p) => p.sp_code),
+    );
+    const wanted = [...new Set(input.participants.map((p) => normalizeSpCode(p.sp_code)))];
+    const dupes = wanted.filter((c) => c && taken.has(c));
+    if (dupes.length > 0) {
+      throw new DuplicateSpCodeError(
+        `Kode SP berikut sudah terdaftar: ${dupes.join(', ')}. ` +
+          'Bila Anda ingin mengubah data yang sudah ada, hubungi panitia untuk mendapatkan ' +
+          'tautan kelolanya. Bila ini memang pendaftaran yang berbeda, lanjutkan.',
+      );
+    }
+  }
 
   const session: RegistrationSession = {
     id: uid(),

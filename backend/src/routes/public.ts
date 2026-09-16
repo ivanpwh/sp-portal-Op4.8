@@ -76,6 +76,25 @@ publicRouter.post(
     }
     validateParticipants(participants);
 
+    // Peringatan sekali jalan: tolak dengan 409 bila ada Kode SP yang sudah
+    // terdaftar, lalu terima kiriman ulang yang membawa acknowledge_duplicate.
+    //
+    // Inilah yang menangani akibat paling sering dari tautan kelola yang hilang:
+    // orang mendaftar ulang. Dulu itu menghasilkan sesi kedua diam-diam.
+    // Pesannya menyebut KODE SP saja — tidak ada nama, kontak, atau tautan —
+    // karena yang mendaftar ulang belum tentu orang yang sama.
+    if (!body.acknowledge_duplicate) {
+      const dupes = await services.findDuplicateSpCodes(participants.map((p) => p.sp_code));
+      if (dupes.length > 0) {
+        throw new HttpError(
+          409,
+          `Kode SP berikut sudah terdaftar: ${dupes.join(', ')}. ` +
+            'Bila Anda ingin mengubah data yang sudah ada, hubungi panitia untuk mendapatkan ' +
+            'tautan kelolanya. Bila ini memang pendaftaran yang berbeda, lanjutkan.',
+        );
+      }
+    }
+
     const sessionId = uid();
     await prisma.registrationSession.create({
       data: {

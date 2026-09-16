@@ -84,6 +84,9 @@ export interface RegistrationInput {
   participants: ParticipantInput[];
   // Honeypot anti-spam field — must stay empty for a real human.
   website?: string;
+  // Dikirim pada percobaan KEDUA setelah peringatan Kode SP ganda. Server
+  // menolak sekali dengan 409, lalu menerima kiriman ulang yang membawa ini.
+  acknowledge_duplicate?: boolean;
 }
 
 // ---------------------------------------------------------------------------

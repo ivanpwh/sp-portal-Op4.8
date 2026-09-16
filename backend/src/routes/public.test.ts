@@ -112,6 +112,97 @@ describe.skipIf(!available)('manage-by-token flows', () => {
   });
 });
 
+describe.skipIf(!available)('POST /api/registrations — Kode SP ganda', () => {
+  beforeEach(async () => {
+    await resetDb();
+    await createEvent({ registrationOpen: true });
+  });
+
+  async function register(body: Record<string, unknown>) {
+    return request(app).post('/api/registrations').send(body);
+  }
+
+  /**
+   * Peringatan, bukan larangan. Kode SP ganda paling sering berarti pendaftar
+   * kehilangan tautan kelolanya lalu mendaftar ulang — dulu itu menghasilkan
+   * sesi kedua secara diam-diam.
+   */
+  it('menolak sekali dengan 409 saat Kode SP sudah terdaftar', async () => {
+    await register({ privacy_consent: true, participants: [validParticipant] });
+
+    const res = await register({ privacy_consent: true, participants: [validParticipant] });
+    expect(res.status).toBe(409);
+    expect(res.body.detail).toMatch(/sudah terdaftar/i);
+    expect(res.body.detail).toMatch(/SP1/);
+  });
+
+  it('menerima kiriman ulang yang membawa acknowledge_duplicate', async () => {
+    await register({ privacy_consent: true, participants: [validParticipant] });
+
+    const res = await register({
+      privacy_consent: true,
+      participants: [validParticipant],
+      acknowledge_duplicate: true,
+    });
+    expect(res.status).toBe(201);
+  });
+
+  // Yang mendaftar ulang belum tentu orang yang sama; dia tidak berhak tahu
+  // data pendaftaran sebelumnya.
+  it('tidak membocorkan data pendaftaran pertama di pesan penolakan', async () => {
+    await register({
+      privacy_consent: true,
+      participants: [
+        {
+          ...validParticipant,
+          full_name: 'Nama Rahasia',
+          whatsapp_number: '6281200000001',
+          email: 'rahasia@example.com',
+        },
+      ],
+    });
+
+    const res = await register({ privacy_consent: true, participants: [validParticipant] });
+    const body = JSON.stringify(res.body);
+    expect(body).not.toMatch(/Nama Rahasia/);
+    expect(body).not.toMatch(/6281200000001/);
+    expect(body).not.toMatch(/rahasia@example\.com/);
+  });
+
+  // Membatalkan lalu mendaftar ulang adalah alur yang sah — memperingatkan
+  // mereka soal kodenya sendiri hanya akan membingungkan.
+  it('tidak menganggap peserta yang sudah dibatalkan sebagai bentrokan', async () => {
+    const first = await register({ privacy_consent: true, participants: [validParticipant] });
+    await request(app).post(`/api/registrations/token/${first.body.manage_token}/cancel`);
+
+    const res = await register({ privacy_consent: true, participants: [validParticipant] });
+    expect(res.status).toBe(201);
+  });
+
+  it('menyebut setiap Kode SP yang bentrok, bukan hanya yang pertama', async () => {
+    await register({
+      privacy_consent: true,
+      participants: [
+        { full_name: 'Satu', sp_code: 'SP1' },
+        { full_name: 'Dua', sp_code: 'SP2' },
+      ],
+    });
+
+    const res = await register({
+      privacy_consent: true,
+      participants: [
+        { full_name: 'Satu Lagi', sp_code: 'SP1' },
+        { full_name: 'Dua Lagi', sp_code: 'SP2' },
+        { full_name: 'Baru', sp_code: 'SP3' },
+      ],
+    });
+    expect(res.status).toBe(409);
+    expect(res.body.detail).toMatch(/SP1/);
+    expect(res.body.detail).toMatch(/SP2/);
+    expect(res.body.detail).not.toMatch(/SP3/);
+  });
+});
+
 describe.skipIf(!available)('GET /api/participants/public', () => {
   beforeEach(async () => {
     await resetDb();

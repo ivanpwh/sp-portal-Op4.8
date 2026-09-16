@@ -224,6 +224,30 @@ export async function publicParticipants() {
   }));
 }
 
+/**
+ * Kode SP yang sudah dipakai peserta yang MASIH akan hadir.
+ *
+ * Peserta yang dibatalkan sengaja tidak dihitung: keluarga yang membatalkan lalu
+ * mendaftar ulang adalah alur yang sah, dan memperingatkan mereka soal kodenya
+ * sendiri hanya akan membingungkan.
+ *
+ * Dipakai untuk MEMPERINGATKAN, bukan memblokir — lihat acknowledge_duplicate
+ * di schemas.ts. Karena itu ia mengembalikan kodenya saja, tanpa nama, kontak,
+ * atau id sesi: yang mendaftar ulang belum tentu orang yang sama, dan dia tidak
+ * berhak tahu data pendaftaran sebelumnya.
+ */
+export async function findDuplicateSpCodes(codes: string[]): Promise<string[]> {
+  const wanted = [...new Set(codes.map(normalizeSpCode).filter(Boolean))];
+  if (wanted.length === 0) return [];
+
+  const rows = await prisma.participant.findMany({
+    where: { spCode: { in: wanted }, attendanceStatus: { not: 'cancelled' } },
+    select: { spCode: true },
+  });
+  const taken = new Set(rows.map((r) => r.spCode));
+  return wanted.filter((c) => taken.has(c));
+}
+
 export async function findForCheckin(query: string) {
   const q = (query || '').trim().toLowerCase();
   const sessions = await prisma.registrationSession.findMany();

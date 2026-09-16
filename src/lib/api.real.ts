@@ -32,7 +32,7 @@ import type {
 } from '../types';
 // Type-only imports (di-erase saat build) — tidak memicu modul mock dimuat.
 import type { BroadcastResult, Session, SessionFullUpdate } from './api.mock';
-import { RegistrationClosedError } from './api.errors';
+import { DuplicateSpCodeError, RegistrationClosedError } from './api.errors';
 import { API_BASE_URL } from './mode';
 
 const LS_SESSION = 'sp.session'; // selaras dengan mock (auth session)
@@ -103,6 +103,9 @@ export async function submitRegistration(input: RegistrationInput): Promise<Sess
   } catch (e) {
     // Backend mengembalikan 403 bila pendaftaran ditutup / lewat tenggat.
     if (e instanceof HttpError && e.status === 403) throw new RegistrationClosedError(e.message);
+    // 409 = ada Kode SP yang sudah terdaftar. Bukan penolakan akhir: pemanggil
+    // boleh mengirim ulang dengan acknowledge_duplicate.
+    if (e instanceof HttpError && e.status === 409) throw new DuplicateSpCodeError(e.message);
     throw e;
   }
 }
