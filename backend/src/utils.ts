@@ -45,6 +45,18 @@ export function nowIso(): string {
   return new Date().toISOString();
 }
 
+/**
+ * ISO timestamp `days` days from now. Negative values point into the past.
+ *
+ * Exists so seed data can express "a month from whenever this runs" instead of
+ * a literal date. A literal date always rots: the old seed pinned a deadline of
+ * 2026-08-01, and once that passed, every fresh database was created with
+ * registration already closed and nothing in the UI explaining why.
+ */
+export function daysFromNow(days: number): string {
+  return new Date(Date.now() + days * 86_400_000).toISOString();
+}
+
 /** Public human-readable check-in code: 'SP-' + first 6 chars, uppercased. */
 export function shortCode(manageToken: string | null | undefined): string {
   return ('SP-' + (manageToken || '').slice(0, 6)).toUpperCase();

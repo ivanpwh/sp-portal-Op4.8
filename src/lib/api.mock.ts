@@ -31,6 +31,7 @@ import type {
   Stats,
 } from '../types';
 import { MAX_LOTTERY_DRAW_COUNT } from '../types';
+import { evaluateRegistrationGate } from './registrationGate';
 import {
   calculateAge,
   compareSpCode,
@@ -102,6 +103,12 @@ function sessionActive(s: RegistrationSession, all?: Participant[]): boolean {
 }
 
 // ----- seeding --------------------------------------------------------------
+
+/** Hari dari sekarang, dalam ISO. */
+function daysFromNow(days: number): string {
+  return new Date(Date.now() + days * 86400000).toISOString();
+}
+
 function seed(): void {
   if (read(LS.seeded, false)) return;
 
@@ -109,11 +116,15 @@ function seed(): void {
     id: uid(),
     event_name: 'Reuni Akbar Keluarga Soero Pramono 2026',
     tagline: 'Satukan kembali keluarga besar Soero Pramono. Guyub Rukun Saklawase.',
-    event_date: '2026-08-17T09:00:00.000Z',
+    // Tanggal RELATIF, bukan tanggal mati. Tanggal mati apa pun akhirnya lewat,
+    // dan begitu lewat setiap pemasangan baru lahir dengan pendaftaran TERTUTUP
+    // tanpa ada yang menutupnya — itu persis yang terjadi dengan
+    // '2026-08-01T16:59:00.000Z' yang dulu dipaku di sini.
+    event_date: daysFromNow(45),
     location: 'Sajian Kembang Turi',
     address: 'Sleman, Yogyakarta',
     maps_query: 'Sajian Kembang Turi',
-    registration_deadline: '2026-08-01T16:59:00.000Z',
+    registration_deadline: daysFromNow(30),
     registration_open: true,
     qr_checkin_enabled: true,
     updated_at: nowISO(),
@@ -267,24 +278,18 @@ export function getRegistrationStatus(): Promise<RegistrationStatus> {
   const activeSessions = sessions.filter((s) => sessionActive(s, all));
   const total_people = all.filter((p) => p.attendance_status === 'will_attend').length;
 
-  let open = true;
-  let reason: RegistrationStatus['reason'] = 'open';
-  let message = 'Pendaftaran sedang dibuka.';
-
-  if (!ev.registration_open) {
-    open = false;
-    reason = 'closed_manual';
-    message = 'Pendaftaran ditutup sementara oleh panitia.';
-  } else if (ev.registration_deadline && new Date(ev.registration_deadline) < new Date()) {
-    open = false;
-    reason = 'past_deadline';
-    message = 'Maaf, batas waktu pendaftaran telah berakhir.';
-  }
+  // Satu sumber kebenaran dengan pratinjau di EventSettingsPage — kalau kedua
+  // tempat menghitungnya sendiri-sendiri, halaman pengaturan bisa berkata
+  // "terbuka" sementara halaman publik berkata "tertutup".
+  const gate = evaluateRegistrationGate({
+    registration_open: Boolean(ev.registration_open),
+    registration_deadline: ev.registration_deadline ?? null,
+  });
 
   return delay({
-    open,
-    reason,
-    message,
+    open: gate.open,
+    reason: gate.reason,
+    message: gate.message,
     total_sessions: activeSessions.length,
     total_people,
     deadline: ev.registration_deadline,

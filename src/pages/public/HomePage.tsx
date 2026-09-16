@@ -11,12 +11,31 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getEventSettings(), getRegistrationStatus()])
-      .then(([e, s]) => {
-        setEvent(e);
-        setStatus(s);
-      })
-      .finally(() => setLoading(false));
+    let alive = true;
+    const load = (first: boolean) =>
+      Promise.all([getEventSettings(), getRegistrationStatus()])
+        .then(([e, s]) => {
+          if (!alive) return;
+          setEvent(e);
+          setStatus(s);
+        })
+        .finally(() => {
+          if (alive && first) setLoading(false);
+        });
+
+    void load(true);
+
+    // Status pendaftaran bisa berubah dari tab admin kapan saja. Tanpa ini,
+    // tab publik yang dibiarkan terbuka terus menampilkan "Pendaftaran Ditutup"
+    // walau panitia sudah membukanya beberapa menit lalu.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load(false);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      alive = false;
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   if (loading || !event || !status) return <PageLoader />;

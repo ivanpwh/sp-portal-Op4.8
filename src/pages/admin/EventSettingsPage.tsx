@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { getEventSettings, updateEventSettings } from '../../lib/api';
 import type { EventSettings } from '../../types';
 import { Alert, Button, Card, Field, Input, PageLoader, Textarea } from '../../components/ui';
+import { evaluateRegistrationGate, isDeadlinePassed } from '../../lib/registrationGate';
+import { formatDateTime } from '../../lib/format';
 
 // ISO <-> <input type="datetime-local"> helpers (local time).
 function toLocalInput(iso: string | null): string {
@@ -30,6 +32,14 @@ export default function EventSettingsPage() {
   }, []);
 
   if (loading || !ev) return <PageLoader />;
+
+  // Dihitung dari state form, bukan dari hasil simpan terakhir, supaya panitia
+  // melihat akibat suntingannya seketika.
+  const gate = evaluateRegistrationGate({
+    registration_open: ev.registration_open,
+    registration_deadline: ev.registration_deadline,
+  });
+  const deadlinePassed = isDeadlinePassed(ev.registration_deadline);
 
   function patch<K extends keyof EventSettings>(key: K, value: EventSettings[K]) {
     setEv((e) => (e ? { ...e, [key]: value } : e));
@@ -108,6 +118,37 @@ export default function EventSettingsPage() {
               className="h-6 w-6 rounded text-brand-600 focus:ring-brand-500"
             />
           </label>
+
+          {/* Pendaftaran terbuka hanya bila saklar di atas menyala DAN tenggatnya
+              belum lewat. Tanpa ringkasan ini, kombinasi "saklar menyala tapi
+              tenggat sudah lewat" terlihat seperti berhasil — panitia mencentang,
+              menyimpan, melihat "Tersimpan", lalu situs tetap tertutup tanpa
+              satu pun petunjuk kenapa. Dihitung dari nilai yang SEDANG DIEDIT,
+              jadi jawabannya muncul sebelum tombol simpan ditekan. */}
+          <Alert
+            variant={gate.open ? 'success' : 'warning'}
+            title={gate.open ? 'Saat ini pendaftaran TERBUKA' : 'Saat ini pendaftaran TERTUTUP'}
+          >
+            {gate.reason === 'past_deadline' ? (
+              <>
+                Tenggatnya terlewat pada <strong>{formatDateTime(ev.registration_deadline)}</strong>.
+                Selama tenggat masih di masa lalu, mencentang &ldquo;Pendaftaran Dibuka&rdquo;
+                <strong> tidak akan membuka apa pun</strong> — majukan dulu tenggatnya, atau
+                kosongkan agar tidak ada batas waktu.
+              </>
+            ) : gate.reason === 'closed_manual' ? (
+              <>
+                Ditutup lewat saklar di atas. Nyalakan untuk membuka kembali
+                {deadlinePassed ? ' — tapi tenggatnya juga perlu dimajukan.' : '.'}
+              </>
+            ) : ev.registration_deadline ? (
+              <>
+                Terbuka sampai <strong>{formatDateTime(ev.registration_deadline)}</strong>.
+              </>
+            ) : (
+              <>Terbuka tanpa batas waktu.</>
+            )}
+          </Alert>
         </Card>
 
         <Card className="space-y-5">

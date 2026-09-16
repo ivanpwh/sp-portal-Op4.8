@@ -12,6 +12,7 @@ import {
   jsStr,
   parseIso,
   shortCode,
+  daysFromNow,
   genToken,
   secureRandomInt,
 } from './utils';
@@ -100,6 +101,27 @@ describe('maskEmail', () => {
   });
 });
 
+// Seed memakai ini alih-alih tanggal mati. Tanggal mati apa pun akhirnya lewat,
+// dan begitu lewat setiap basis data baru lahir dengan pendaftaran tertutup —
+// itu persis bug yang pernah terjadi dengan '2026-08-01'.
+describe('daysFromNow', () => {
+  it('menghasilkan ISO di masa depan untuk nilai positif', () => {
+    const iso = daysFromNow(30);
+    expect(Number.isNaN(Date.parse(iso))).toBe(false);
+    expect(iso.endsWith('Z')).toBe(true);
+    expect(new Date(iso).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('menghasilkan ISO di masa lalu untuk nilai negatif', () => {
+    expect(new Date(daysFromNow(-1)).getTime()).toBeLessThan(Date.now());
+  });
+
+  it('berjarak tepat sesuai jumlah harinya', () => {
+    const delta = new Date(daysFromNow(10)).getTime() - Date.now();
+    // Toleransi 2 detik untuk waktu eksekusi.
+    expect(Math.abs(delta - 10 * 86_400_000)).toBeLessThan(2000);
+  });
+});
 
 describe('normalizeSpCode / isValidSpCode', () => {
   it('uppercases and strips whitespace', () => {

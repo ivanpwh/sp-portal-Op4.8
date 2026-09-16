@@ -35,6 +35,12 @@ di jalur `api.real.ts` → backend nyata.
 - `SP_CODE_RE` (regex format Kode SP) diimplementasikan identik dan
   independen di `backend/src/utils.ts` **dan** `src/lib/format.ts` — tidak
   ada shared package antara frontend dan backend di repo ini.
+- Aturan **gerbang pendaftaran** juga terduplikasi: `evaluateRegistrationGate()`
+  di `src/lib/registrationGate.ts` (dipakai mock **dan** pratinjau di
+  `EventSettingsPage`) mencerminkan `computeRegistrationStatus()` di
+  `backend/src/services.ts`. Keduanya harus menjawab sama untuk kombinasi
+  saklar × tenggat yang sama — kalau menyimpang, halaman pengaturan bisa berkata
+  "terbuka" sementara halaman publik berkata "tertutup".
 - Fungsi masking kontak publik mengikuti pola yang sama: `maskWhatsapp()` +
   `maskEmail()` di `backend/src/utils.ts` (dipakai
   `services.publicParticipants()`) dan `maskWhatsApp()` + `maskEmail()` di

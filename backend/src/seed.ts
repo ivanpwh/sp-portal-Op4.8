@@ -3,7 +3,7 @@
 import { prisma } from './db';
 import { settings } from './config';
 import { hashPassword } from './security';
-import { nowIso, uid } from './utils';
+import { daysFromNow, nowIso, uid } from './utils';
 
 export async function bootstrap(): Promise<void> {
   const committeeCount = await prisma.committee.count();
@@ -28,11 +28,15 @@ export async function bootstrap(): Promise<void> {
         id: uid(),
         eventName: 'Reuni Akbar Keluarga Soero Pramono 2026',
         tagline: 'Satukan kembali keluarga besar Soero Pramono. Guyub Rukun Saklawase.',
-        eventDate: '2026-08-17T09:00:00.000Z',
+        // Tanggal RELATIF, bukan tanggal mati. Tanggal mati apa pun akhirnya
+        // lewat, dan begitu lewat setiap basis data baru lahir dengan
+        // pendaftaran TERTUTUP tanpa ada yang menutupnya — itu persis yang
+        // terjadi dengan '2026-08-01T16:59:00.000Z' yang dulu dipaku di sini.
+        eventDate: daysFromNow(45),
         location: 'Sajian Kembang Turi',
         address: 'Sleman, Yogyakarta',
         mapsQuery: 'Sajian Kembang Turi',
-        registrationDeadline: '2026-08-01T16:59:00.000Z',
+        registrationDeadline: daysFromNow(30),
         registrationOpen: true,
         qrCheckinEnabled: true,
         updatedAt: nowIso(),
