@@ -2,6 +2,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   normalizeWhatsapp,
   isValidWhatsapp,
+  maskWhatsapp,
+  maskEmail,
   normalizeSpCode,
   isValidSpCode,
   spInduk,
@@ -49,6 +51,55 @@ describe('isValidWhatsapp', () => {
     expect(isValidWhatsapp('abc')).toBe(false);
   });
 });
+
+// These two guard an UNAUTHENTICATED endpoint (GET /api/participants/public),
+// so their output is the only thing standing between real family contact
+// details and anyone with curl. Keep the cases that pin exact output.
+describe('maskWhatsapp', () => {
+  it('keeps country code, first 3 and last 3 digits', () => {
+    expect(maskWhatsapp('6281234567890')).toBe('+62 812-•••••-890');
+  });
+  it('returns an empty string for null/undefined/empty input', () => {
+    expect(maskWhatsapp(null)).toBe('');
+    expect(maskWhatsapp(undefined)).toBe('');
+    expect(maskWhatsapp('')).toBe('');
+  });
+  it('masks every digit when the number is too short to split safely', () => {
+    expect(maskWhatsapp('123')).toBe('•••');
+  });
+  it('never returns the raw number back', () => {
+    const raw = '6281200000001';
+    expect(maskWhatsapp(raw)).not.toContain('0000000');
+    expect(maskWhatsapp(raw)).not.toBe(raw);
+  });
+  it('matches the frontend mirror in src/lib/format.ts for the documented example', () => {
+    // If this ever diverges, demo-mode and the real build show different things.
+    expect(maskWhatsapp('6281234567890')).toBe('+62 812-•••••-890');
+  });
+});
+
+describe('maskEmail', () => {
+  it('keeps the domain and the first two characters of the local part', () => {
+    expect(maskEmail('budi.santoso@gmail.com')).toBe('bu••••••••••@gmail.com');
+  });
+  it('returns an empty string for null/undefined/empty input', () => {
+    expect(maskEmail(null)).toBe('');
+    expect(maskEmail(undefined)).toBe('');
+    expect(maskEmail('')).toBe('');
+  });
+  it('still hides a very short local part', () => {
+    expect(maskEmail('ab@x.com')).toBe('a••@x.com');
+    expect(maskEmail('a@x.com')).toBe('a••@x.com');
+  });
+  it('masks the whole value when there is no usable local part', () => {
+    expect(maskEmail('noatsign')).toBe('••••••••');
+    expect(maskEmail('@x.com')).toBe('••••••');
+  });
+  it('uses the last @ so a local part containing @ cannot leak the domain', () => {
+    expect(maskEmail('we@ird@example.com')).toBe('we••••@example.com');
+  });
+});
+
 
 describe('normalizeSpCode / isValidSpCode', () => {
   it('uppercases and strips whitespace', () => {

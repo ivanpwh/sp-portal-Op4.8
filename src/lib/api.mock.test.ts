@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   submitRegistration,
+  getPublicParticipants,
   voidLotteryWinner,
   updateSessionByToken,
   cancelRegistrationByToken,
@@ -92,6 +93,37 @@ describe('submitRegistration', () => {
     await expect(
       submitRegistration({ privacy_consent: true, participants: [validParticipant] }),
     ).rejects.toBeInstanceOf(RegistrationClosedError);
+  });
+});
+
+// Mirrors the backend regression in backend/src/routes/public.test.ts: in demo
+// mode this mock IS the backend, so it must mask contact details too. If it
+// stopped, the portfolio build would hand out the seed data's contacts in full
+// and the two data layers would disagree about what "public" means.
+describe('getPublicParticipants', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    seedOpenEvent();
+  });
+
+  it('never returns raw contact details', async () => {
+    const rawWhatsapp = '6281299887766';
+    const rawEmail = 'rahasia.sekali@example.com';
+    await submitRegistration({
+      privacy_consent: true,
+      participants: [
+        { ...validParticipant, whatsapp_number: rawWhatsapp, email: rawEmail },
+      ],
+    });
+
+    const groups = await getPublicParticipants();
+    const body = JSON.stringify(groups);
+    expect(body).not.toContain(rawWhatsapp);
+    expect(body).not.toContain(rawEmail);
+
+    const participant = groups[0].participants[0];
+    expect(participant.whatsapp_number).toBe('+62 812-•••••-766');
+    expect(participant.email).toBe('ra••••••••••••@example.com');
   });
 });
 

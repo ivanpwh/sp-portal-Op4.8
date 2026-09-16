@@ -35,6 +35,15 @@ di jalur `api.real.ts` → backend nyata.
 - `SP_CODE_RE` (regex format Kode SP) diimplementasikan identik dan
   independen di `backend/src/utils.ts` **dan** `src/lib/format.ts` — tidak
   ada shared package antara frontend dan backend di repo ini.
+- Fungsi masking kontak publik mengikuti pola yang sama: `maskWhatsapp()` +
+  `maskEmail()` di `backend/src/utils.ts` (dipakai
+  `services.publicParticipants()`) dan `maskWhatsApp()` + `maskEmail()` di
+  `src/lib/format.ts` (dipakai `api.mock.ts` sebagai "backend" mode demo).
+  Perhatikan beda kapitalisasi: backend `Whatsapp`, frontend `WhatsApp`.
+  Keluarannya **wajib identik karakter per karakter** — kalau menyimpang, build
+  demo dan build nyata menampilkan hal berbeda. Keduanya dikunci uji yang
+  mem-pin string persisnya (`backend/src/utils.test.ts`,
+  `src/lib/format.test.ts`).
 
 Ini adalah **root cause paling umum** dari bug kelas "berhasil di satu sisi,
 rusak di sisi lain" (mis. field baru bisa disimpan di DB tapi tidak pernah

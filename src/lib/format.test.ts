@@ -3,6 +3,7 @@ import {
   normalizeWhatsApp,
   isValidWhatsApp,
   maskWhatsApp,
+  maskEmail,
   isValidEmail,
   normalizeSpCode,
   isValidSpCode,
@@ -41,6 +42,30 @@ describe('maskWhatsApp', () => {
   });
   it('does not crash on a too-short input, masking all digits', () => {
     expect(maskWhatsApp('123')).toBe('•••');
+  });
+});
+
+// Mirror of maskEmail in backend/src/utils.ts — the mock is the "backend" in
+// demo mode, so the two must produce identical strings.
+describe('maskEmail', () => {
+  it('keeps the domain and the first two characters of the local part', () => {
+    expect(maskEmail('budi.santoso@gmail.com')).toBe('bu••••••••••@gmail.com');
+  });
+  it('returns an empty string for null/undefined/empty input', () => {
+    expect(maskEmail(null)).toBe('');
+    expect(maskEmail(undefined)).toBe('');
+    expect(maskEmail('')).toBe('');
+  });
+  it('still hides a very short local part', () => {
+    expect(maskEmail('ab@x.com')).toBe('a••@x.com');
+    expect(maskEmail('a@x.com')).toBe('a••@x.com');
+  });
+  it('masks the whole value when there is no usable local part', () => {
+    expect(maskEmail('noatsign')).toBe('••••••••');
+    expect(maskEmail('@x.com')).toBe('••••••');
+  });
+  it('uses the last @ so a local part containing @ cannot leak the domain', () => {
+    expect(maskEmail('we@ird@example.com')).toBe('we••••@example.com');
   });
 });
 

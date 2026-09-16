@@ -118,7 +118,7 @@ describe.skipIf(!available)('GET /api/participants/public', () => {
     await createEvent({ registrationOpen: true });
   });
 
-  it('returns only public-safe fields', async () => {
+  it('exposes only name, SP code and MASKED contact fields', async () => {
     await request(app)
       .post('/api/registrations')
       .send({
@@ -131,5 +131,38 @@ describe.skipIf(!available)('GET /api/participants/public', () => {
     expect(Object.keys(participant).sort()).toEqual(
       ['email', 'full_name', 'nickname', 'sp_code', 'whatsapp_number'].sort(),
     );
+  });
+
+  // REGRESSION: this endpoint takes no token and has no rate limit, so whatever
+  // it returns is published to anyone who asks. Masking used to happen only in
+  // ParticipantsPage.tsx, which meant the raw values were shipped to every
+  // visitor and merely drawn over. Masking now happens in the service; this test
+  // fails loudly if it ever moves back to the browser.
+  it('never sends raw contact details to an unauthenticated caller', async () => {
+    const rawWhatsapp = '6281299887766';
+    const rawEmail = 'rahasia.sekali@example.com';
+
+    await request(app)
+      .post('/api/registrations')
+      .send({
+        privacy_consent: true,
+        participants: [
+          { ...validParticipant, whatsapp_number: rawWhatsapp, email: rawEmail },
+        ],
+      });
+
+    // Deliberately no Authorization header.
+    const res = await request(app).get('/api/participants/public');
+    expect(res.status).toBe(200);
+
+    const body = JSON.stringify(res.body);
+    expect(body).not.toContain(rawWhatsapp);
+    expect(body).not.toContain(rawEmail);
+    expect(body).not.toContain('99887766');
+    expect(body).not.toContain('rahasia.sekali');
+
+    const participant = res.body[0].participants[0];
+    expect(participant.whatsapp_number).toBe('+62 812-•••••-766');
+    expect(participant.email).toBe('ra••••••••••••@example.com');
   });
 });

@@ -15,6 +15,8 @@ import {
   calculateAge,
   compareSpCode,
   jsStr,
+  maskEmail,
+  maskWhatsapp,
   normalizeSpCode,
   normalizeWhatsapp,
   nowIso,
@@ -198,6 +200,16 @@ export async function listSpInduk(): Promise<string[]> {
   return [...set].sort(compareSpCode);
 }
 
+/**
+ * The /peserta list, for GET /api/participants/public — which requires NO login.
+ *
+ * Contact details are masked HERE, in the service, not in the page that renders
+ * them. Anyone can call this endpoint with a single unauthenticated request and
+ * there is no rate limit on this path, so a raw number in the response is a raw
+ * number published to the world — regardless of what the UI chooses to draw.
+ * The public page never uses the unmasked values for anything (no wa.me link,
+ * no mailto), so nothing is lost by never sending them.
+ */
 export async function publicParticipants() {
   const groups = await groupedBySpInduk(true);
   return groups.map((g) => ({
@@ -206,8 +218,8 @@ export async function publicParticipants() {
       full_name: p.full_name,
       nickname: p.nickname,
       sp_code: p.sp_code,
-      whatsapp_number: p.whatsapp_number,
-      email: p.email,
+      whatsapp_number: maskWhatsapp(p.whatsapp_number),
+      email: maskEmail(p.email),
     })),
   }));
 }

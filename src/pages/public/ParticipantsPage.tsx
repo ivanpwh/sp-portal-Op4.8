@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { getPublicParticipants } from '../../lib/api';
 import type { PublicSpIndukGroup } from '../../types';
 import { Badge, Button, Card, CountUp, Input, PageLoader } from '../../components/ui';
-import { maskWhatsApp } from '../../lib/format';
 
 export default function ParticipantsPage() {
   const [groups, setGroups] = useState<PublicSpIndukGroup[]>([]);
@@ -154,21 +153,27 @@ export default function ParticipantsPage() {
                               <p className="mt-0.5 font-mono text-sm text-slate-500">{p.sp_code}</p>
                             </div>
                             <div className="shrink-0 sm:text-right">
+                              {/* Kontak SUDAH tersamar saat sampai di sini — lihat
+                                  services.publicParticipants() di backend dan
+                                  getPublicParticipants() di api.mock.ts. Jangan
+                                  menyamarkan lagi di komponen ini: menyamarkan dua
+                                  kali menghasilkan hasil yang berbeda dan menyesatkan. */}
                               {p.whatsapp_number ? (
                                 <span
                                   className="inline-flex items-center gap-1.5 px-2 py-1 text-sm font-semibold text-slate-600"
                                   title="Nomor disamarkan demi privasi"
                                 >
-                                  💬 {maskWhatsApp(p.whatsapp_number)}
+                                  💬 {p.whatsapp_number}
                                   <span className="sr-only"> (nomor disamarkan demi privasi)</span>
                                 </span>
                               ) : p.email ? (
-                                <a
-                                  href={`mailto:${p.email}`}
-                                  className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-brand-700 hover:bg-brand-50"
+                                <span
+                                  className="inline-flex items-center gap-1.5 px-2 py-1 text-sm font-semibold text-slate-600"
+                                  title="Email disamarkan demi privasi"
                                 >
                                   ✉ {p.email}
-                                </a>
+                                  <span className="sr-only"> (email disamarkan demi privasi)</span>
+                                </span>
                               ) : (
                                 <span className="text-sm text-slate-400">Kontak tidak tersedia</span>
                               )}

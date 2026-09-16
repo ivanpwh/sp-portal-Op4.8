@@ -28,6 +28,21 @@ export function maskWhatsApp(raw: string | null | undefined): string {
   return `+${cc} ${prefix}-${'•'.repeat(hidden)}-${last}`;
 }
 
+// Samarkan email untuk tampilan publik. Domain dibiarkan, bagian lokal ditutup.
+// Contoh: "budi.santoso@gmail.com" → "bu•••@gmail.com".
+export function maskEmail(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  const at = s.lastIndexOf('@');
+  // Tanpa bagian lokal yang jelas (tidak ada '@', atau '@' di awal) — samarkan
+  // seluruhnya daripada menebak bagian mana yang aman ditampilkan.
+  if (at < 1) return s ? '•'.repeat(s.length) : '';
+  const local = s.slice(0, at);
+  const keep = local.length <= 2 ? 1 : 2;
+  const hidden = Math.max(2, local.length - keep);
+  return local.slice(0, keep) + '•'.repeat(hidden) + s.slice(at);
+}
+
 export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }

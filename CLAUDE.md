@@ -73,10 +73,17 @@ Aturan:
   oleh `genToken()` (`backend/src/utils.ts`) dengan `crypto.randomInt` (24
   karakter, bukan `Math.random`) — jangan pernah log token ini atau
   mengirimkannya ke pihak ketiga (analytics, error tracker, dsb).
-- **Nomor WhatsApp di UI publik wajib disamarkan** lewat `maskWhatsApp()`
-  (`src/lib/format.ts`), dipakai di `src/pages/public/ParticipantsPage.tsx`.
-  Jangan menulis logic masking baru dari nol — pakai fungsi ini. Email publik
-  (fallback saat WA kosong) tetap ditampilkan penuh sebagai `mailto:`.
+- **Kontak di daftar peserta publik disamarkan DI SISI SERVER, bukan di
+  komponen.** `GET /api/participants/public` tidak butuh login dan tidak
+  dibatasi rate limit, jadi apa pun yang dikirimnya sama dengan dipublikasikan.
+  `services.publicParticipants()` memanggil `maskWhatsapp()` dan `maskEmail()`
+  (`backend/src/utils.ts`) sebelum data meninggalkan proses; `api.mock.ts`
+  melakukan hal yang sama dengan `maskWhatsApp()`/`maskEmail()` dari
+  `src/lib/format.ts` untuk mode demo. `ParticipantsPage.tsx` hanya menampilkan
+  apa yang diterimanya — **jangan menyamarkan lagi di sana** (menyamarkan dua
+  kali menghasilkan string berbeda dan menyesatkan), dan jangan menulis logic
+  masking baru dari nol. Email tidak lagi dirender sebagai `mailto:` karena
+  alamat tersamar bukan alamat yang bisa dikirimi surat.
 
 ## Kontrak serialisasi & validasi
 

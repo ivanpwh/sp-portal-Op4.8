@@ -34,6 +34,8 @@ import { MAX_LOTTERY_DRAW_COUNT } from '../types';
 import {
   calculateAge,
   compareSpCode,
+  maskEmail,
+  maskWhatsApp,
   normalizeSpCode,
   normalizeWhatsApp,
   spInduk,
@@ -595,8 +597,11 @@ export async function getPublicParticipants(): Promise<PublicSpIndukGroup[]> {
       full_name: p.full_name,
       nickname: p.nickname,
       sp_code: p.sp_code,
-      whatsapp_number: p.whatsapp_number,
-      email: p.email,
+      // Disamarkan DI SINI, bukan di komponen — mock ini berperan sebagai
+      // backend untuk mode demo, jadi ia harus meniru
+      // services.publicParticipants() yang juga menyamarkan di sisi server.
+      whatsapp_number: maskWhatsApp(p.whatsapp_number),
+      email: maskEmail(p.email),
     })),
   }));
 }

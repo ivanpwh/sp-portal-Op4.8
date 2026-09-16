@@ -67,6 +67,46 @@ export function isValidWhatsapp(raw: string | null | undefined): boolean {
   return /^62\d{8,13}$/.test(normalizeWhatsapp(raw));
 }
 
+// ---------------------------------------------------------------------------
+// Public-facing masking (PII)
+//
+// Applied SERVER-SIDE in services.publicParticipants(). GET
+// /api/participants/public needs no login, so the raw values must never leave
+// this process: masking in the browser would be cosmetic only, because the real
+// value would already have been shipped to every visitor.
+//
+// Both functions are duplicated — identical output, different casing to match
+// each side's conventions — in src/lib/format.ts, which the demo-mode mock uses
+// as its own "backend". There is no shared package (see docs/KNOWN_GOTCHAS.md):
+// change one, change the other, or the demo and real builds will disagree.
+// ---------------------------------------------------------------------------
+
+/** '6281234567890' -> '+62 812-•••••-890'. Keeps country code, 3 first, 3 last. */
+export function maskWhatsapp(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const digits = String(raw).replace(/\D/g, '');
+  if (digits.length < 7) return digits ? '•'.repeat(digits.length) : '';
+  const cc = digits.slice(0, 2);
+  const rest = digits.slice(2);
+  const prefix = rest.slice(0, 3);
+  const last = rest.slice(-3);
+  const hidden = Math.max(2, rest.length - prefix.length - last.length);
+  return `+${cc} ${prefix}-${'•'.repeat(hidden)}-${last}`;
+}
+
+/** 'budi.santoso@gmail.com' -> 'bu•••@gmail.com'. Domain kept, local part hidden. */
+export function maskEmail(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  const at = s.lastIndexOf('@');
+  // No usable local part (no '@' at all, or it leads the string): mask the whole
+  // value rather than guessing which half is safe to show.
+  if (at < 1) return s ? '•'.repeat(s.length) : '';
+  const local = s.slice(0, at);
+  const keep = local.length <= 2 ? 1 : 2;
+  const hidden = Math.max(2, local.length - keep);
+  return local.slice(0, keep) + '•'.repeat(hidden) + s.slice(at);
+}
 
 // ---------------------------------------------------------------------------
 // SP code (PRD §2) — format: SP[num](.[num])*[A]?  (A = spouse). Stored UPPERCASE.
