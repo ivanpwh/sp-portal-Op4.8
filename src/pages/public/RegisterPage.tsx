@@ -13,6 +13,7 @@ import { isValidEmail, isValidSpCode, isValidWhatsApp, normalizeSpCode } from '.
 import { Alert, Button, Card, Field, Input, PageLoader, Select } from '../../components/ui';
 import { DatePicker } from '../../components/DatePicker';
 import { RegionPicker } from '../../components/RegionPicker';
+import { hasKelurahan } from '../../lib/region';
 
 interface PRow {
   key: string;
@@ -117,7 +118,10 @@ export default function RegisterPage() {
       if (p.sp_code.trim() && !isValidSpCode(p.sp_code)) e.sp_code = 'Format kode SP tidak valid (mis. SP4.1.3A).';
       if (!p.birth_date.trim()) e.birth_date = 'Tanggal lahir wajib diisi.';
       else if (new Date(p.birth_date) > new Date()) e.birth_date = 'Tanggal lahir tidak boleh di masa depan.';
+      // Semua baris di sini baru, jadi kelurahan selalu wajib. Pengecualian
+      // "data lama boleh tiga tingkat" hanya berlaku di halaman edit.
       if (!p.address.trim()) e.address = 'Pilih kecamatan/kota domisili dari daftar.';
+      else if (!hasKelurahan(p.address)) e.address = 'Pilih juga kelurahan/desa domisili.';
       // last_occupation & accommodation are OPTIONAL in v3.1.
       if (p.email.trim() && !isValidEmail(p.email)) e.email = 'Format email tidak valid.';
       if (p.whatsapp_number.trim() && !isValidWhatsApp(p.whatsapp_number))
@@ -327,8 +331,9 @@ export default function RegisterPage() {
                     />
                   </Field>
 
-                  <Field label="Provinsi/Kota/Kecamatan Domisili" required error={e.address} hint="Ketik untuk mencari kecamatan domisili.">
+                  <Field label="Provinsi/Kota/Kecamatan/Kelurahan Domisili" required error={e.address} hint="Ketik nama kelurahan/desa atau kecamatan, lalu pilih dari daftar.">
                     <RegionPicker
+                      requireVillage
                       value={p.address}
                       onChange={(v) => setParticipant(idx, 'address', v)}
                       ariaInvalid={!!e.address}

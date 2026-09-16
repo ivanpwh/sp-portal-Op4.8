@@ -25,6 +25,7 @@ import {
 import { Alert, Badge, Button, Card, Field, Input, Modal, PageLoader, Select } from '../../components/ui';
 import { DatePicker } from '../../components/DatePicker';
 import { RegionPicker } from '../../components/RegionPicker';
+import { hasKelurahan } from '../../lib/region';
 
 type PErrors = Partial<Record<keyof ParticipantInput, string>>;
 function emptyPForm(): ParticipantInput {
@@ -117,6 +118,13 @@ export default function SessionDetailPage() {
     setPErrors({});
     setPOpen(true);
   }
+  /**
+   * Sama seperti ManagePage: wajib untuk peserta baru dan untuk alamat yang
+   * diubah, tapi alamat lama tiga tingkat yang dibiarkan utuh tetap lolos —
+   * panitia tidak boleh terhalang mengoreksi field lain milik data lama.
+   */
+  const villageRequired = !pEditing || pForm.address.trim() !== pEditing.address.trim();
+
   function validateP(): boolean {
     const e: PErrors = {};
     if (!pForm.full_name.trim()) e.full_name = 'Wajib diisi.';
@@ -125,6 +133,8 @@ export default function SessionDetailPage() {
     if (!pForm.birth_date.trim()) e.birth_date = 'Wajib diisi.';
     else if (new Date(pForm.birth_date) > new Date()) e.birth_date = 'Tanggal lahir tidak boleh di masa depan.';
     if (!pForm.address.trim()) e.address = 'Pilih kecamatan/kota domisili dari daftar.';
+    else if (villageRequired && !hasKelurahan(pForm.address))
+      e.address = 'Pilih juga kelurahan/desa domisili.';
     // last_occupation & accommodation optional
     if (pForm.email && pForm.email.trim() && !isValidEmail(pForm.email)) e.email = 'Email tidak valid.';
     if (pForm.whatsapp_number && pForm.whatsapp_number.trim() && !isValidWhatsApp(pForm.whatsapp_number))
@@ -238,7 +248,7 @@ export default function SessionDetailPage() {
                         {p.nickname && <Row label="Nama Panggilan" value={p.nickname} />}
                         <Row label="Tanggal Lahir" value={formatBirthDate(p.birth_date)} />
                         <Row label="Umur" value={calculateAge(p.birth_date) != null ? `${calculateAge(p.birth_date)} tahun` : '-'} />
-                        <Row label="Kecamatan/Kota" value={p.address} />
+                        <Row label="Wilayah Domisili" value={p.address} />
                         {p.address_detail && <Row label="Alamat Lengkap" value={p.address_detail} />}
                         <Row label="Pekerjaan" value={p.last_occupation || '-'} />
                         <Row label="Menginap" value={p.accommodation || '-'} />
@@ -347,8 +357,8 @@ export default function SessionDetailPage() {
             <Field label="Tanggal Lahir" required error={pErrors.birth_date}>
               <DatePicker value={pForm.birth_date} onChange={(v) => setPForm({ ...pForm, birth_date: v })} max={todayStr} ariaInvalid={!!pErrors.birth_date} />
             </Field>
-            <Field label="Provinsi/Kota/Kecamatan Domisili" required error={pErrors.address}>
-              <RegionPicker value={pForm.address} onChange={(v) => setPForm({ ...pForm, address: v })} ariaInvalid={!!pErrors.address} idPrefix="reg-detail" />
+            <Field label="Provinsi/Kota/Kecamatan/Kelurahan Domisili" required error={pErrors.address}>
+              <RegionPicker value={pForm.address} onChange={(v) => setPForm({ ...pForm, address: v })} ariaInvalid={!!pErrors.address} idPrefix="reg-detail" requireVillage={villageRequired} />
             </Field>
           </div>
           <Field label="Alamat Lengkap Domisili" hint="Opsional — nama jalan, RT/RW, nomor rumah, dll.">

@@ -39,7 +39,11 @@ export interface Participant {
   nickname: string; // nama panggilan — opsional (boleh kosong)
   sp_code: string; // WAJIB — mis. "SP4.1.3A"
   birth_date: string; // tanggal lahir, atau umur bila tak tahu
-  address: string; // region domisili: "Provinsi, Kab/Kota, Kecamatan" via RegionPicker
+  // Region domisili via RegionPicker: "Provinsi, Kab/Kota, Kecamatan, Kelurahan".
+  // Data lama berhenti di kecamatan (3 segmen) dan TETAP SAH — jangan pernah
+  // mem-parsing ini dengan split(','), ada nama desa yang memuat koma; pakai
+  // resolveKecamatan() di src/lib/region.ts.
+  address: string;
   address_detail: string; // alamat lengkap bebas — opsional (boleh kosong)
   last_occupation: string; // opsional (boleh kosong)
   accommodation: string; // rencana lokasi menginap — opsional (boleh kosong)

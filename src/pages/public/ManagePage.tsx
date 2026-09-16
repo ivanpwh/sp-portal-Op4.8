@@ -14,6 +14,7 @@ import { isValidEmail, isValidSpCode, isValidWhatsApp } from '../../lib/format';
 import { Alert, Badge, Button, Card, Field, Input, Modal, PageLoader, Select } from '../../components/ui';
 import { DatePicker } from '../../components/DatePicker';
 import { RegionPicker } from '../../components/RegionPicker';
+import { hasKelurahan } from '../../lib/region';
 
 interface PRow {
   key: string;
@@ -128,6 +129,19 @@ export default function ManagePage() {
     setSaved(false);
   }
 
+  /**
+   * Kelurahan wajib untuk baris baru dan untuk alamat yang benar-benar diubah.
+   * Alamat lama yang dibiarkan apa adanya tetap lolos — inilah janji "data yang
+   * sudah masuk tapi belum sampai kelurahan boleh saja". Tanpa pengecualian ini
+   * pendaftar lama tidak bisa menyimpan koreksi apa pun (mis. nomor WhatsApp)
+   * tanpa dipaksa membongkar alamatnya lebih dulu.
+   */
+  function villageRequired(p: PRow): boolean {
+    if (!p.id) return true;
+    const original = session?.participants.find((x) => x.id === p.id)?.address ?? '';
+    return p.address.trim() !== original.trim();
+  }
+
   function validate(): boolean {
     let ok = true;
     const pe: PErrors[] = rows.map((p) => {
@@ -138,6 +152,8 @@ export default function ManagePage() {
       if (!p.birth_date.trim()) e.birth_date = 'Tanggal lahir wajib diisi.';
       else if (new Date(p.birth_date) > new Date()) e.birth_date = 'Tanggal lahir tidak boleh di masa depan.';
       if (!p.address.trim()) e.address = 'Pilih kecamatan/kota domisili dari daftar.';
+      else if (villageRequired(p) && !hasKelurahan(p.address))
+        e.address = 'Pilih juga kelurahan/desa domisili.';
       if (p.email.trim() && !isValidEmail(p.email)) e.email = 'Format email tidak valid.';
       if (p.whatsapp_number.trim() && !isValidWhatsApp(p.whatsapp_number))
         e.whatsapp_number = 'Nomor WhatsApp tidak valid.';
@@ -322,8 +338,8 @@ export default function ManagePage() {
                   <Field label="Tanggal Lahir" required error={e.birth_date}>
                     <DatePicker value={p.birth_date} onChange={(v) => setRow(idx, 'birth_date', v)} max={todayStr} ariaInvalid={!!e.birth_date} />
                   </Field>
-                  <Field label="Provinsi/Kota/Kecamatan Domisili" required error={e.address} hint="Ketik untuk mencari kecamatan domisili.">
-                    <RegionPicker value={p.address} onChange={(v) => setRow(idx, 'address', v)} ariaInvalid={!!e.address} idPrefix={`reg-${p.key}`} />
+                  <Field label="Provinsi/Kota/Kecamatan/Kelurahan Domisili" required error={e.address} hint="Ketik nama kelurahan/desa atau kecamatan, lalu pilih dari daftar.">
+                    <RegionPicker value={p.address} onChange={(v) => setRow(idx, 'address', v)} ariaInvalid={!!e.address} idPrefix={`reg-${p.key}`} requireVillage={villageRequired(p)} />
                   </Field>
                 </div>
                 <Field label="Alamat Lengkap Domisili" hint="Opsional — nama jalan, RT/RW, nomor rumah, dll.">
