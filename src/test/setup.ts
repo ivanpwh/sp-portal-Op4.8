@@ -29,6 +29,46 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
   })) as unknown as typeof window.matchMedia;
 }
 
+// ---------------------------------------------------------------------------
+// EventTarget.prototype.addEventListener pada objek global
+//
+// Di lingkungan jsdom-nya vitest, `window` BUKAN instance Window milik jsdom —
+// propertinya disalin ke objek global Node. Memanggil metode window secara
+// normal (`window.addEventListener(...)`) tetap jalan karena salinannya sudah
+// terikat, tapi memanggilnya lewat prototipe —
+// `EventTarget.prototype.addEventListener.call(window, ...)` — gagal
+// pemeriksaan merek jsdom dan melempar.
+//
+// Itu persis yang dilakukan flowbite-datepicker saat dibuat (ia menyimpan
+// metode prototipe sekali lalu memakainya untuk semua target, termasuk
+// `window`), sehingga TANPA jembatan ini <DatePicker> tidak bisa dirender sama
+// sekali di dalam uji — bukan karena komponennya salah, melainkan karena
+// bentuk global di lingkungan ujinya.
+//
+// Hanya panggilan yang `this`-nya objek global yang dialihkan; target lain
+// (elemen, document) tetap lewat jalur aslinya apa adanya.
+// ---------------------------------------------------------------------------
+{
+  type Listen = typeof EventTarget.prototype.addEventListener;
+  type Unlisten = typeof EventTarget.prototype.removeEventListener;
+  const g = globalThis as unknown as { addEventListener: Listen; removeEventListener: Unlisten };
+  const globalAdd = g.addEventListener;
+  const globalRemove = g.removeEventListener;
+  const protoAdd = EventTarget.prototype.addEventListener;
+  const protoRemove = EventTarget.prototype.removeEventListener;
+
+  if (typeof globalAdd === 'function' && globalAdd !== protoAdd) {
+    EventTarget.prototype.addEventListener = function (this: EventTarget, ...args) {
+      if ((this as unknown) === globalThis) return globalAdd.apply(g, args) as void;
+      return protoAdd.apply(this, args);
+    } as Listen;
+    EventTarget.prototype.removeEventListener = function (this: EventTarget, ...args) {
+      if ((this as unknown) === globalThis) return globalRemove.apply(g, args) as void;
+      return protoRemove.apply(this, args);
+    } as Unlisten;
+  }
+}
+
 afterEach(() => {
   // Tanpa `globals: true`, React Testing Library tidak membersihkan dirinya
   // sendiri antar-test: DOM dari test sebelumnya tetap menempel, dan query

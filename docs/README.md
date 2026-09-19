@@ -18,7 +18,7 @@ Kumpulan dokumen perancangan & spesifikasi **SP Portal** (Soero Pramono Reunion 
 - **Tanpa "Data Pendata"** — peserta diinput langsung (1..n) dalam satu sesi; satu token kelola + satu kode/QR check-in per sesi.
 - **Kode SP wajib** per peserta; **SP Induk** = token pertama kode SP (mis. `SP4`). Ada halaman **Pengelompokan per SP Induk**.
 - **Wajib**: Nama, Kode SP. **Opsional**: Tanggal Lahir, Alamat Domisili, Pekerjaan, Menginap, Email, WhatsApp. (Tanggal Lahir & Alamat Domisili dilonggarkan jadi opsional — pendaftar sering tidak hafal data kerabat yang didaftarkannya; alamat boleh berhenti di tingkat mana pun, kelurahan tidak diwajibkan.)
-- **Tanggal Lahir** dipilih via **datepicker** (Flowbite, Bahasa Indonesia); **umur dihitung otomatis** di sisi panitia (tidak diinput) — tampil di Detail Sesi, Pengelompokan, dan kolom `age` pada ekspor CSV.
+- **Tanggal Lahir** dipilih via **datepicker** (Flowbite, Bahasa Indonesia), ditampilkan `hh/bb/tttt` (mis. `17/08/1965`) sementara nilai yang disimpan tetap ISO `YYYY-MM-DD`; **umur dihitung otomatis** di sisi panitia (tidak diinput) — tampil di Detail Sesi, Pengelompokan, dan kolom `age` pada ekspor CSV.
 - **Alamat Domisili** dipilih lewat **satu kotak pencarian kecamatan** se-Indonesia (autocomplete; label "Provinsi, Kabupaten/Kota, Kecamatan"); data dari `idn-area-data`.
 - **Tanpa kuota** dan **tanpa pencegahan duplikat** (kontrol via tools admin).
 - Identitas sesi di admin diwakili **peserta pertama** (kolom "Perwakilan").
