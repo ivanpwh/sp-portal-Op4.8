@@ -111,14 +111,12 @@ describe('RegionPicker', () => {
     expect(box().getAttribute('aria-invalid')).not.toBe('true');
   });
 
-  // Untuk data lama, berhenti di kecamatan harus tetap bisa dipilih ulang.
-  it('menawarkan berhenti di kecamatan hanya saat kelurahan tidak diwajibkan', async () => {
-    const { rerender, unmount } = render(<RegionPicker value={PARONGPONG} onChange={() => {}} />);
+  // Domisili opsional: berhenti di kecamatan harus selalu bisa dipilih, baik
+  // untuk data lama maupun pendaftar baru.
+  it('selalu menawarkan berhenti di kecamatan', async () => {
+    const { unmount } = render(<RegionPicker value={PARONGPONG} onChange={() => {}} />);
     fireEvent.focus(box());
     expect(await screen.findByText('— tanpa kelurahan')).toBeTruthy();
-
-    rerender(<RegionPicker value={PARONGPONG} onChange={() => {}} requireVillage />);
-    expect(screen.queryByText('— tanpa kelurahan')).toBeNull();
     unmount();
   });
 

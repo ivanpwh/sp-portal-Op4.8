@@ -13,7 +13,6 @@ import { isValidEmail, isValidSpCode, isValidWhatsApp, normalizeSpCode } from '.
 import { Alert, Button, Card, Field, Input, PageLoader, Select } from '../../components/ui';
 import { DatePicker } from '../../components/DatePicker';
 import { RegionPicker } from '../../components/RegionPicker';
-import { hasKelurahan } from '../../lib/region';
 
 interface PRow {
   key: string;
@@ -116,12 +115,13 @@ export default function RegisterPage() {
       const e: PErrors = {};
       if (!p.full_name.trim()) e.full_name = 'Nama lengkap wajib diisi.';
       if (p.sp_code.trim() && !isValidSpCode(p.sp_code)) e.sp_code = 'Format kode SP tidak valid (mis. SP4.1.3A).';
-      if (!p.birth_date.trim()) e.birth_date = 'Tanggal lahir wajib diisi.';
-      else if (new Date(p.birth_date) > new Date()) e.birth_date = 'Tanggal lahir tidak boleh di masa depan.';
-      // Semua baris di sini baru, jadi kelurahan selalu wajib. Pengecualian
-      // "data lama boleh tiga tingkat" hanya berlaku di halaman edit.
-      if (!p.address.trim()) e.address = 'Pilih kecamatan/kota domisili dari daftar.';
-      else if (!hasKelurahan(p.address)) e.address = 'Pilih juga kelurahan/desa domisili.';
+      // Tanggal lahir & domisili OPSIONAL. Yang mengisi formulir sering
+      // mendaftarkan kerabat yang tanggal lahir/alamatnya tidak ia hafal;
+      // memblokir pendaftarannya karena itu lebih merugikan daripada satu kolom
+      // kosong yang bisa dilengkapi panitia belakangan. Kelurahan pun tidak lagi
+      // diwajibkan — berhenti di kecamatan tetap tersimpan apa adanya.
+      if (p.birth_date.trim() && new Date(p.birth_date) > new Date())
+        e.birth_date = 'Tanggal lahir tidak boleh di masa depan.';
       // last_occupation & accommodation are OPTIONAL in v3.1.
       if (p.email.trim() && !isValidEmail(p.email)) e.email = 'Format email tidak valid.';
       if (p.whatsapp_number.trim() && !isValidWhatsApp(p.whatsapp_number))
@@ -322,7 +322,7 @@ export default function RegisterPage() {
                 </Field>
 
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  <Field label="Tanggal Lahir" required error={e.birth_date} hint="Umur dihitung otomatis oleh panitia.">
+                  <Field label="Tanggal Lahir" error={e.birth_date} hint="Opsional — umur dihitung otomatis oleh panitia.">
                     <DatePicker
                       value={p.birth_date}
                       onChange={(v) => setParticipant(idx, 'birth_date', v)}
@@ -331,9 +331,8 @@ export default function RegisterPage() {
                     />
                   </Field>
 
-                  <Field label="Provinsi/Kota/Kecamatan/Kelurahan Domisili" required error={e.address} hint="Ketik nama kelurahan/desa atau kecamatan, lalu pilih dari daftar.">
+                  <Field label="Provinsi/Kota/Kecamatan/Kelurahan Domisili" error={e.address} hint="Opsional — ketik nama kelurahan/desa atau kecamatan, lalu pilih dari daftar.">
                     <RegionPicker
-                      requireVillage
                       value={p.address}
                       onChange={(v) => setParticipant(idx, 'address', v)}
                       ariaInvalid={!!e.address}

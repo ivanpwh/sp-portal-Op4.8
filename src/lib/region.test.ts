@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   buildKecamatanOptions,
   groupVillagesByDistrict,
-  hasKelurahan,
   joinRegion,
   parseCsvRows,
   resolveKecamatan,
@@ -228,28 +227,5 @@ describe('searchVillages', () => {
     expect(searchVillages(INDEX, 'cihanjuang', 10)).toEqual(
       searchVillages(INDEX, 'cihanjuang', 10),
     );
-  });
-});
-
-describe('hasKelurahan', () => {
-  it('membedakan nilai empat tingkat dari tiga tingkat', () => {
-    expect(hasKelurahan(`${PARONGPONG}, Cihanjuang`)).toBe(true);
-    expect(hasKelurahan(PARONGPONG)).toBe(false);
-    expect(hasKelurahan('')).toBe(false);
-  });
-
-  /**
-   * Validasi jalan sinkron saat submit, jadi fungsi ini tidak boleh bergantung
-   * pada daftar opsi yang dimuat lewat jaringan — alamat lengkap tidak boleh
-   * ditolak hanya karena daftarnya belum sempat termuat.
-   */
-  it('bekerja tanpa daftar opsi sama sekali', () => {
-    expect(hasKelurahan('Jawa Barat, Kabupaten Bandung Barat, Parongpong, Cihanjuang')).toBe(true);
-  });
-
-  // Arah salahnya harus aman: nama desa berkoma menambah potongan, tidak
-  // mengurangi, jadi alamat yang sudah lengkap tidak pernah dianggap kurang.
-  it('nama desa berkoma tetap terbaca sudah punya kelurahan', () => {
-    expect(hasKelurahan(`${LUBUK_PAKAM}, Lambang Sari I, II, III`)).toBe(true);
   });
 });

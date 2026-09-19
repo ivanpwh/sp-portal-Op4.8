@@ -49,8 +49,6 @@ interface RegionPickerProps {
   onChange: (combined: string) => void;
   ariaInvalid?: boolean;
   idPrefix?: string;
-  /** true = jangan tawarkan berhenti di kecamatan (pendaftar/baris baru). */
-  requireVillage?: boolean;
 }
 
 export function RegionPicker({
@@ -58,7 +56,6 @@ export function RegionPicker({
   onChange,
   ariaInvalid,
   idPrefix = 'reg',
-  requireVillage = false,
 }: RegionPickerProps) {
   const [options, setOptions] = useState<KecamatanOption[] | null>(null);
   const [index, setIndex] = useState<VillageIndex | null>(null);
@@ -140,15 +137,15 @@ export function RegionPicker({
     // Kecamatannya sudah jelas → tawarkan desa-desanya, sebagai label penuh.
     if (match) {
       const rest = match.rest.trim().toLowerCase();
-      if (!requireVillage) {
-        out.push({
-          key: 'kec-self',
-          text: match.option.label,
-          commit: match.option.label,
-          drill: false,
-          note: 'tanpa kelurahan',
-        });
-      }
+      // Berhenti di kecamatan selalu ditawarkan: domisili sendiri opsional, jadi
+      // tidak ada keadaan di mana kelurahan boleh dipaksakan.
+      out.push({
+        key: 'kec-self',
+        text: match.option.label,
+        commit: match.option.label,
+        drill: false,
+        note: 'tanpa kelurahan',
+      });
       for (const name of index?.[match.option.code] ?? []) {
         if (rest && !name.toLowerCase().includes(rest)) continue;
         out.push({
@@ -188,7 +185,7 @@ export function RegionPicker({
       if (out.length >= MAX_RESULTS) break;
     }
     return out;
-  }, [options, index, byCode, match, query, requireVillage]);
+  }, [options, index, byCode, match, query]);
 
   function pick(r: Row) {
     if (r.drill) {

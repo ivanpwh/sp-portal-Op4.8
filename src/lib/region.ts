@@ -212,23 +212,6 @@ export function searchVillages(
   return out;
 }
 
-/**
- * true bila nilainya sudah memuat kelurahan. Dipakai validasi form.
- *
- * Sengaja TIDAK memakai `splitRegion`: validasi berjalan sinkron saat tombol
- * simpan ditekan, sedangkan daftar opsi dimuat asinkron dan bisa saja belum
- * siap — memakai splitRegion berarti alamat yang sudah lengkap bisa ditolak
- * hanya karena jaringan lambat.
- *
- * Menghitung koma aman DI SINI meski tidak aman di `splitRegion`: nama provinsi,
- * kabupaten/kota, dan kecamatan tidak pernah memuat koma, jadi nilai tiga
- * tingkat selalu tepat tiga potong. Nama desa berkoma hanya menambah potongan,
- * jadi tetap terbaca sebagai "sudah ada kelurahan" — arah salahnya pun aman.
- */
-export function hasKelurahan(value: string): boolean {
-  return value.trim().split(',').length >= 4;
-}
-
 // ----- pemuatan & cache -----------------------------------------------------
 
 const LS_KECAMATAN = 'sp.wilayah.kecamatan.v2'; // v2: kini menyimpan kode, bukan label saja
