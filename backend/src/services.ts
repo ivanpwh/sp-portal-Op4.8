@@ -17,6 +17,7 @@ import {
   jsStr,
   maskEmail,
   maskWhatsapp,
+  normalizeIndukList,
   normalizeSpCode,
   normalizeWhatsapp,
   nowIso,
@@ -473,9 +474,13 @@ export async function broadcast(
 // Lottery (Undian)
 //
 // Pool = every participant with attendance_status 'will_attend' whose id has
-// not been drawn yet. Each Participant is one independent entry — no grouping
-// or weighting by SP Induk, and no spouse ('A' suffix) special-casing. Check-in
-// is deliberately NOT a requirement.
+// not been drawn yet. Check-in is deliberately NOT a requirement.
+//
+// The committee may narrow the pool to chosen SP Induk groups per draw
+// (LotteryPoolFilter / DrawOptions.induk); no filter means every group, which
+// is what every caller written before the filter existed keeps getting. Within
+// whatever survives the filter, each Participant is still one independent
+// entry — no weighting by group size, and no spouse ('A' suffix) special-casing.
 //
 // The pool/winner shapes below carry ONLY full_name, nickname and sp_code —
 // the same identity fields already public via publicParticipants(). No
@@ -510,7 +515,31 @@ function poolEntry(p: PoolRow): LotteryPoolEntry {
  *
  * `tx` lets drawLotteryWinner() recompute the pool INSIDE its transaction.
  */
+export interface LotteryPoolFilter {
+  /**
+   * Kelompok SP Induk yang ikut diundi, mis. ['SP1', 'SP2', 'SP3'].
+   *
+   * Daftar KOSONG (atau tidak diisi sama sekali) berarti SELURUH kelompok ikut
+   * — itulah kontrak lama dan tetap jadi perilaku bawaan, supaya pemanggil yang
+   * tidak tahu soal filter tidak pernah diam-diam mengundi sebagian keluarga.
+   */
+  induk?: string[];
+}
+
+/**
+ * Set SP Induk yang berhak menang, atau null bila tidak ada filter sama sekali.
+ *
+ * Pencocokannya atas hasil spInduk(), BUKAN startsWith: sebagai prefix, 'SP1'
+ * juga cocok dengan 'SP10' dan 'SP12' — memilih SP1 saja akan diam-diam
+ * menyeret seluruh cabang SP10-SP19 ke dalam undian.
+ */
+function indukFilterSet(induk?: string[]): Set<string> | null {
+  const list = normalizeIndukList(induk);
+  return list.length === 0 ? null : new Set(list);
+}
+
 export async function getLotteryPool(
+  filter: LotteryPoolFilter = {},
   tx: Pick<typeof prisma, 'participant' | 'lotteryDraw'> = prisma,
 ): Promise<LotteryPoolEntry[]> {
   // Only ACTIVE draws take someone out of the pool. A voided row is a
@@ -527,7 +556,15 @@ export async function getLotteryPool(
     },
     select: LOTTERY_POOL_SELECT,
   });
-  return rows.map(poolEntry).sort((a, b) => compareSpCode(a.sp_code, b.sp_code));
+  // Filter kelompok dikerjakan di JS, bukan di klausa where Prisma: SP Induk
+  // adalah hasil parsing spCode (lihat spInduk), dan satu-satunya padanan SQL-nya
+  // adalah startsWith yang justru salah (lihat indukFilterSet). Pool ini hanya
+  // sebesar jumlah peserta yang akan hadir, jadi menyaringnya di memori murah.
+  const wanted = indukFilterSet(filter.induk);
+  return rows
+    .map(poolEntry)
+    .filter((p) => wanted === null || wanted.has(spInduk(p.sp_code)))
+    .sort((a, b) => compareSpCode(a.sp_code, b.sp_code));
 }
 
 /**
@@ -552,6 +589,16 @@ export interface DrawOptions {
   count?: number;
   /** Prize round this draw belongs to, snapshotted onto every row. */
   roundLabel?: string;
+  /**
+   * SP Induk groups allowed to win this draw. Empty = every group, which is
+   * what an old caller that never sends the field keeps getting.
+   *
+   * The filter is applied to the pool INSIDE the transaction, not to a pool
+   * read beforehand: the frontend also narrows its own copy for display, and a
+   * display-only filter would happily announce a winner from a group the
+   * committee had just excluded.
+   */
+  induk?: string[];
 }
 
 /**
@@ -569,13 +616,22 @@ export interface DrawOptions {
 export async function drawLotteryWinner(committeeName: string, options: DrawOptions = {}) {
   const requested = Math.max(1, Math.min(MAX_DRAW_COUNT, Math.floor(options.count ?? 1)));
   const roundLabel = (options.roundLabel ?? '').trim();
+  const induk = normalizeIndukList(options.induk);
 
   const attempt = () =>
     prisma.$transaction(
       async (tx) => {
-        const pool = await getLotteryPool(tx);
+        const pool = await getLotteryPool({ induk }, tx);
         if (pool.length === 0) {
-          throw new HttpError(400, 'Tidak ada peserta tersisa untuk diundi.');
+          // Dua pesan berbeda dengan sengaja: pool yang kosong KARENA filter
+          // bisa diperbaiki panitia dalam dua detik dengan mencentang kelompok
+          // lain, sedangkan pool yang benar-benar habis tidak bisa.
+          throw new HttpError(
+            400,
+            induk.length > 0
+              ? `Tidak ada peserta tersisa untuk diundi pada kelompok ${induk.join(', ')}.`
+              : 'Tidak ada peserta tersisa untuk diundi.',
+          );
         }
 
         const available = pool.slice();

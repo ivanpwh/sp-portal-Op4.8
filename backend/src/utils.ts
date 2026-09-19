@@ -141,6 +141,36 @@ export function spInduk(raw: string | null | undefined): string {
   return m ? m[0] : '—';
 }
 
+/** Bentuk sah satu SP Induk: 'SP' + angka, tanpa titik dan tanpa suffix 'A'. */
+export const SP_INDUK_RE = /^SP\d+$/;
+
+/**
+ * Batas jumlah kelompok SP dalam satu filter undian. Tidak ada keluarga dengan
+ * 200 cabang induk — angkanya ada supaya satu request tidak bisa memaksa server
+ * membangun Set raksasa, bukan karena UI-nya butuh sebanyak itu.
+ */
+export const MAX_INDUK_FILTER = 200;
+
+/**
+ * Rapikan daftar SP Induk untuk filter undian: buang spasi, UPPERCASE, buang
+ * yang kosong, buang duplikat. Urutan pertama-muncul dipertahankan.
+ *
+ * SENGAJA tidak membuang entri yang bentuknya salah. Membuang entri tak dikenal
+ * akan mengubah filter ['SPX'] (tidak cocok siapa pun) menjadi daftar kosong,
+ * dan daftar kosong di sini berarti "semua kelompok ikut" — persis kebalikan
+ * dari yang diminta panitia. Entri asing dibiarkan lewat dan cukup tidak cocok
+ * dengan siapa pun; bentuk yang salah sudah ditolak lebih awal oleh zod (422).
+ */
+export function normalizeIndukList(raw: readonly string[] | null | undefined): string[] {
+  if (!raw) return [];
+  const out: string[] = [];
+  for (const v of raw) {
+    const clean = normalizeSpCode(v);
+    if (clean && !out.includes(clean)) out.push(clean);
+  }
+  return out;
+}
+
 function spParts(c: string): number[] {
   const s = normalizeSpCode(c).replace(/^SP/, '');
   return s.split('.').map((p) => {

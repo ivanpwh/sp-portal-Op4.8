@@ -70,6 +70,34 @@ export function spInduk(rawCode: string | null | undefined): string {
   return m ? m[0] : '—';
 }
 
+// Bentuk sah satu SP Induk: "SP" + angka, tanpa titik dan tanpa suffix A.
+// Kembaran independen dari SP_INDUK_RE di backend/src/utils.ts — ubah keduanya
+// pada commit yang sama (lihat docs/CHANGE_RECIPES.md bagian c).
+export const SP_INDUK_RE = /^SP\d+$/;
+
+// Batas jumlah kelompok dalam satu filter undian; dicerminkan oleh
+// MAX_INDUK_FILTER di backend/src/utils.ts (dipakai zod untuk menolak 422).
+export const MAX_INDUK_FILTER = 200;
+
+/**
+ * Rapikan daftar SP Induk untuk filter undian: buang spasi, UPPERCASE, buang
+ * yang kosong, buang duplikat. Cerminan normalizeIndukList di
+ * backend/src/utils.ts.
+ *
+ * Tidak membuang entri yang bentuknya salah: daftar kosong berarti "semua
+ * kelompok ikut", jadi membuang entri asing dari ["SPX"] justru akan melebarkan
+ * undian, bukan mempersempitnya.
+ */
+export function normalizeIndukList(raw: readonly string[] | null | undefined): string[] {
+  if (!raw) return [];
+  const out: string[] = [];
+  for (const v of raw) {
+    const clean = normalizeSpCode(v);
+    if (clean && !out.includes(clean)) out.push(clean);
+  }
+  return out;
+}
+
 // Urutkan kode SP secara alami (SP4.1 sebelum SP4.10, SP2 sebelum SP10).
 export function compareSpCode(a: string, b: string): number {
   const toParts = (c: string) =>

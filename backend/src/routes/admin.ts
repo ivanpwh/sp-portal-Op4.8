@@ -462,7 +462,7 @@ adminRouter.post(
     const body = parseBody(lotteryDrawSchema, req.body);
     const { draws, remaining, requested } = await services.drawLotteryWinner(
       req.committee?.name ?? '',
-      { count: body.count, roundLabel: body.round_label },
+      { count: body.count, roundLabel: body.round_label, induk: body.induk },
     );
     const winners = draws.map(lotteryDrawDict);
     // requested > winners.length means the pool ran dry mid-draw. That is a

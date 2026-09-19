@@ -2,6 +2,7 @@
 // are stripped (matching Pydantic's default), so e.g. sending a full Participant
 // to a PATCH only applies the recognized fields.
 import { z } from 'zod';
+import { MAX_INDUK_FILTER, SP_INDUK_RE, normalizeSpCode } from './utils';
 
 export const participantInputSchema = z.object({
   full_name: z.string(),
@@ -103,6 +104,23 @@ export const committeeToggleSchema = z.object({
 // winner with no round label, which is what the old contract did.
 export const lotteryDrawSchema = z.object({
   count: z.number().int().min(1).max(20).default(1),
+  // Kelompok SP Induk yang ikut diundi. Array kosong / field tidak dikirim =
+  // SEMUA kelompok ikut, jadi pemanggil lama tetap dapat perilaku lama.
+  //
+  // Bentuk yang salah DITOLAK (422), bukan dibuang diam-diam: membuang entri
+  // tak sah dari ['SP1.2'] menghasilkan array kosong, dan array kosong berarti
+  // "semua kelompok" — panitia akan mengira sudah menyaring padahal tidak.
+  induk: z
+    .array(
+      z
+        .string()
+        .transform((s) => normalizeSpCode(s))
+        .refine((s) => SP_INDUK_RE.test(s), {
+          message: 'Harus berupa SP Induk seperti SP1 atau SP12, bukan kode SP lengkap.',
+        }),
+    )
+    .max(MAX_INDUK_FILTER)
+    .default([]),
   // Shown on the projector to a whole room, so it is length-capped and must
   // never be used for names or phone numbers (see CLAUDE.md).
   round_label: z.string().trim().max(60).default(''),

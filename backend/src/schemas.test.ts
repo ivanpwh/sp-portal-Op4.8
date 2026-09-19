@@ -6,7 +6,9 @@ import {
   committeeCreateSchema,
   broadcastInputSchema,
   loginInputSchema,
+  lotteryDrawSchema,
 } from './schemas';
+import { MAX_INDUK_FILTER } from './utils';
 
 describe('registrationInputSchema', () => {
   const validParticipant = { full_name: 'Budi Santoso', sp_code: 'SP4' };
@@ -142,6 +144,34 @@ describe('broadcastInputSchema', () => {
     const result = broadcastInputSchema.safeParse({ channels: ['email'], bogus: true });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data).not.toHaveProperty('bogus');
+  });
+});
+
+describe('lotteryDrawSchema — filter kelompok SP', () => {
+  it('defaults to an empty list, which means every group takes part', () => {
+    const result = lotteryDrawSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.induk).toEqual([]);
+  });
+
+  it('normalises each entry to uppercase without whitespace', () => {
+    const result = lotteryDrawSchema.safeParse({ induk: [' sp1 ', 'Sp12'] });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.induk).toEqual(['SP1', 'SP12']);
+  });
+
+  /**
+   * Rejected, not silently dropped: dropping the only entry of ['SP1.2'] leaves
+   * an empty list, and an empty list means EVERY group. The committee would
+   * believe it had narrowed the draw while it had in fact widened it.
+   */
+  it.each([['SP1.2'], ['SP4A'], ['sp'], ['4'], ['']])('rejects %s — not an SP Induk', (value) => {
+    expect(lotteryDrawSchema.safeParse({ induk: [value] }).success).toBe(false);
+  });
+
+  it('rejects a list longer than the cap', () => {
+    const tooMany = Array.from({ length: MAX_INDUK_FILTER + 1 }, (_, i) => `SP${i + 1}`);
+    expect(lotteryDrawSchema.safeParse({ induk: tooMany }).success).toBe(false);
   });
 });
 

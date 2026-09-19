@@ -101,6 +101,7 @@ describe('openLotteryChannel', () => {
       durationMs: 10000,
       scale: 'raksasa' as const,
       effect: 'drumroll' as const,
+      induk: ['SP1', 'SP2'],
     };
     control.post({ type: 'state-snapshot', pool: [], winners: [], settings, muted: false });
 

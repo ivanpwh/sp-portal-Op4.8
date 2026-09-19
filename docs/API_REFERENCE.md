@@ -126,12 +126,25 @@ basis data dan tidak dirender di mana pun.
 
 | Method + Path | Request body | Response shape | Error eksplisit | Frontend caller |
 |---|---|---|---|---|
-| `GET /api/admin/lottery/pool` | — | `services.getLotteryPool()`: `{ id, full_name, nickname, sp_code }[]` — peserta `will_attend` yang tidak punya baris `lottery_draws` **aktif** (anti-join dengan `voidedAt: null`), urut `compareSpCode`. Status check-in **tidak** berpengaruh | — | `getLotteryPool()` — `LotteryControlPage` |
+| `GET /api/admin/lottery/pool` | — | `services.getLotteryPool()`: `{ id, full_name, nickname, sp_code }[]` — peserta `will_attend` yang tidak punya baris `lottery_draws` **aktif** (anti-join dengan `voidedAt: null`), urut `compareSpCode`. Status check-in **tidak** berpengaruh. Endpoint ini **selalu mengembalikan pool penuh, tanpa filter kelompok**: dari sinilah halaman kontrol menyusun daftar kelompok SP beserta jumlahnya, jadi menyaringnya di sini akan membuat kelompok yang tidak tercentang lenyap dari daftar | — | `getLotteryPool()` — `LotteryControlPage` |
 | `GET /api/admin/lottery/winners` | — | `lotteryDrawDict[]` — hanya pemenang **aktif**, urut `drawn_at desc` | — | `getLotteryWinners()` — `LotteryControlPage` |
-| `POST /api/admin/lottery/draw` | `{ count?: 1..20 = 1, round_label?: string (<=60) = '' }` — body opsional; POST kosong = satu pemenang tanpa label | `{ winner, winners: lotteryDrawDict[], remaining, requested }`. `winner` adalah **alias `winners[0]`**, dipertahankan sementara agar pemanggil lama tetap benar — pakai `winners` untuk kode baru. `requested > winners.length` berarti pool habis di tengah undian: itu **undian sebagian, bukan galat**. Semua baris dalam satu undian berbagi `drawn_at` yang sama | **400** `"Tidak ada peserta tersisa untuk diundi."` jika pool kosong; **422** jika `count` di luar 1..20 | `drawLotteryWinner()` — `LotteryControlPage` (dipanggil SEKALI per undian; animasi reel murni penundaan di klien) |
+| `POST /api/admin/lottery/draw` | `{ count?: 1..20 = 1, round_label?: string (<=60) = '', induk?: string[] = [] }` — body opsional; POST kosong = satu pemenang tanpa label dari SELURUH kelompok. `induk` = daftar **SP Induk** (`SP1`, `SP12` — bukan kode SP lengkap) yang ikut diundi; **daftar kosong berarti semua kelompok ikut** | `{ winner, winners: lotteryDrawDict[], remaining, requested }`. `winner` adalah **alias `winners[0]`**, dipertahankan sementara agar pemanggil lama tetap benar — pakai `winners` untuk kode baru. `requested > winners.length` berarti pool habis di tengah undian: itu **undian sebagian, bukan galat**. `remaining` dihitung **di dalam filter**, bukan atas pool penuh. Semua baris dalam satu undian berbagi `drawn_at` yang sama | **400** `"Tidak ada peserta tersisa untuk diundi."` jika pool kosong, atau `"…pada kelompok SP2."` bila yang habis adalah kelompok terpilih; **422** jika `count` di luar 1..20, jika ada entri `induk` yang bukan SP Induk (mis. `SP1.2`, `SP4A`), atau jika `induk` lebih dari `MAX_INDUK_FILTER` (200) entri | `drawLotteryWinner()` — `LotteryControlPage` (dipanggil SEKALI per undian; animasi reel murni penundaan di klien) |
 | `POST /api/admin/lottery/undo` | — | `lotteryDrawDict[]` — SELURUH undian terakhir (semua baris aktif yang berbagi `drawn_at` terbesar), bukan satu baris. Semua pesertanya kembali ke pool | **400** `"Belum ada undian untuk dibatalkan."` jika tidak ada pemenang aktif | `undoLastLotteryDraw()` — `LotteryControlPage` (di balik Modal konfirmasi) |
 | `POST /api/admin/lottery/winners/:id/void` | `{ reason?: 'undo' \| 'manual' \| 'reset' = 'manual' }` | `lotteryDrawDict` dari baris yang dibatalkan — pesertanya kembali ke pool. Untuk kasus yang tidak bisa ditangani undo: yang harus dikeluarkan jarang sekali pemenang terakhir | **404** `"Pemenang tidak ditemukan atau sudah dibatalkan."` | `voidLotteryWinner()` — `LotteryControlPage` (tombol "Kembalikan" per baris) |
 | `POST /api/admin/lottery/reset` | — | `{ count: number }` — jumlah pemenang yang dikosongkan. Mengosongkan SELURUH daftar pemenang sekaligus; `/lottery/undo` **tidak** bisa memulihkannya. Barisnya sendiri tetap tersimpan sebagai jejak audit (`void_reason: 'reset'`), tapi tidak muncul lagi di endpoint mana pun. Frontend wajib memasang konfirmasi berlapis, bukan satu klik | — | `resetLottery()` — `LotteryControlPage` (di balik konfirmasi BERLAPIS: wajib mengetik ulang kata `RESET`) |
+
+**Filter kelompok SP (`induk`) ditegakkan di server, bukan di komponen.**
+`LotteryControlPage` memang menyaring salinan pool-nya sendiri untuk tampilan
+(reel, hitungan chip, layar besar), tapi yang menentukan siapa boleh menang
+adalah filter yang ikut terkirim ke `POST /lottery/draw`:
+`services.drawLotteryWinner()` menghitung ulang pool **di dalam transaksi
+Serializable** dengan filter yang sama. Pencocokannya lewat `spInduk()`,
+**bukan `startsWith`** — sebagai prefix, `SP1` juga cocok dengan `SP10` dan
+`SP12`, sehingga memilih SP1 saja akan diam-diam menyeret seluruh cabang
+SP10-SP19 ikut terundi. Entri `induk` yang bentuknya salah **ditolak 422, bukan
+dibuang diam-diam**: membuang satu-satunya entri dari `['SP1.2']` menyisakan
+daftar kosong, dan daftar kosong berarti *semua kelompok* — panitia akan mengira
+sudah mempersempit undian padahal justru melebarkannya.
 
 `lotteryDrawDict`: `{ id, participant_id, full_name, nickname, sp_code, drawn_at, drawn_by_name, round_label }`
 (`backend/src/serializers.ts`). **Tidak ada PII di sini** — tidak pernah ada

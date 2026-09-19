@@ -11,7 +11,7 @@
 // menambahkan whatsapp_number / email / birth_date / address.
 // ---------------------------------------------------------------------------
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   drawLotteryWinner,
   getLotteryPool,
@@ -43,7 +43,7 @@ import {
   saveSettings,
 } from '../../lib/lotterySettings';
 import { isMuted, playDrumroll, playFanfare, setMuted, stopAllLotterySound } from '../../lib/lotterySound';
-import { formatDateTime } from '../../lib/format';
+import { SP_INDUK_RE, compareSpCode, formatDateTime, spInduk } from '../../lib/format';
 
 // Kata yang harus diketik ulang sebelum tombol reset aktif. Reset mengosongkan
 // SELURUH daftar pemenang dan tidak bisa dibatalkan oleh undo, jadi satu klik
@@ -74,6 +74,27 @@ const SCALE_LABEL: Record<LotteryNameScale, string> = {
 
 function errorMessage(e: unknown, fallback: string): string {
   return e instanceof Error && e.message ? e.message : fallback;
+}
+
+/**
+ * Peserta yang benar-benar ikut diundi pada filter kelompok ini.
+ *
+ * DAFTAR KOSONG = SEMUA KELOMPOK IKUT. Itu bentuk kanonik yang sama dipakai
+ * backend, dan alasan halaman ini tidak pernah membiarkan panitia mengosongkan
+ * seluruh centang: centang kosong akan berarti "semua", persis kebalikan dari
+ * yang dimaksud.
+ *
+ * Ini SEMATA untuk tampilan — reel, hitungan, dan layar besar. Yang menentukan
+ * siapa boleh menang tetap filter yang ikut terkirim ke POST /lottery/draw, dan
+ * server menyaring ulang pool-nya sendiri di dalam transaksi.
+ */
+function filterPool(
+  pool: LotteryPoolParticipant[],
+  induk: string[],
+): LotteryPoolParticipant[] {
+  if (induk.length === 0) return pool;
+  const wanted = new Set(induk);
+  return pool.filter((p) => wanted.has(spInduk(p.sp_code)));
 }
 
 /** Sekelompok tombol pilihan tunggal. */
@@ -166,6 +187,55 @@ export default function LotteryControlPage() {
     setPresets(loadPresets());
   }, []);
 
+  // ----- filter kelompok SP -------------------------------------------------
+
+  const selectedInduk = settings.induk;
+  const filterOn = selectedInduk.length > 0;
+
+  /**
+   * Kelompok SP di dalam pool beserta jumlah anggotanya, urut alami.
+   *
+   * Kelompok yang masih tercentang tapi sudah habis (semua anggotanya menang)
+   * tetap ditampilkan dengan hitungan 0. Kalau dibuang dari daftar, centangnya
+   * tetap berlaku di balik layar tanpa ada lagi kotak untuk melepasnya.
+   */
+  const groups = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const code of selectedInduk) counts.set(code, 0);
+    for (const p of pool) {
+      const induk = spInduk(p.sp_code);
+      // spInduk() mengembalikan '—' untuk kode SP yang tidak terbaca. Kelompok
+      // semu itu tidak boleh bisa dicentang: server menolaknya dengan 422.
+      if (SP_INDUK_RE.test(induk)) counts.set(induk, (counts.get(induk) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([induk, count]) => ({ induk, count }))
+      .sort((a, b) => compareSpCode(a.induk, b.induk));
+  }, [pool, selectedInduk]);
+
+  const activePool = useMemo(() => filterPool(pool, selectedInduk), [pool, selectedInduk]);
+
+  /** Peserta yang kode SP-nya tidak terbaca — hanya ikut saat filter dimatikan. */
+  const unfilterable = useMemo(
+    () => pool.filter((p) => !SP_INDUK_RE.test(spInduk(p.sp_code))).length,
+    [pool],
+  );
+
+  function toggleInduk(code: string) {
+    const all = groups.map((g) => g.induk);
+    const current = filterOn ? selectedInduk : all;
+    const next = current.includes(code) ? current.filter((c) => c !== code) : [...current, code];
+    // Mengosongkan SELURUH centang tidak diizinkan: daftar kosong berarti "semua
+    // kelompok ikut", jadi melepas centang terakhir justru akan melebarkan
+    // undian — kebalikan dari yang dimaksud panitia saat menekannya.
+    if (next.length === 0) return;
+    // Semua tercentang sama artinya dengan tidak memfilter, dan disimpan sebagai
+    // daftar kosong supaya kelompok yang baru mendaftar setelah ini ikut sendiri.
+    updateSettings({
+      induk: next.length === all.length ? [] : next.slice().sort(compareSpCode),
+    });
+  }
+
   function showToast(text: string, undo?: () => void) {
     window.clearTimeout(toastTimer.current);
     setToast({ text, undo });
@@ -176,7 +246,10 @@ export default function LotteryControlPage() {
     const s = stateRef.current;
     channelRef.current?.post({
       type: 'state-snapshot',
-      pool: s.pool,
+      // Layar besar menerima pool yang SUDAH tersaring: ia menampilkan sisa
+      // peserta dan memutar nama dari daftar ini, jadi mengirim pool penuh akan
+      // membuat proyektor memutar nama dari kelompok yang tidak ikut diundi.
+      pool: filterPool(s.pool, s.settings.induk),
       winners: s.winners,
       settings: s.settings,
       muted: s.muted,
@@ -213,6 +286,7 @@ export default function LotteryControlPage() {
         const s = stateRef.current;
         const now = Date.now();
         if (s.drawing || s.busy) return;
+        if (filterPool(s.pool, s.settings.induk).length === 0) return;
         if (now - lastRequestRef.current < REQUEST_DRAW_COOLDOWN_MS) return;
         lastRequestRef.current = now;
         drawRef.current();
@@ -311,8 +385,8 @@ export default function LotteryControlPage() {
    */
   const draw = useCallback(async () => {
     const s = stateRef.current;
-    if (s.drawing || s.busy || s.pool.length === 0) return;
-    const { durationMs, effect, count, roundLabel } = s.settings;
+    const { durationMs, effect, count, roundLabel, induk } = s.settings;
+    if (s.drawing || s.busy || filterPool(s.pool, induk).length === 0) return;
 
     setError(null);
     setPartialNote(null);
@@ -324,7 +398,7 @@ export default function LotteryControlPage() {
     const started = performance.now();
 
     try {
-      const res = await drawLotteryWinner({ count, round_label: roundLabel });
+      const res = await drawLotteryWinner({ count, round_label: roundLabel, induk });
       const left = durationMs - (performance.now() - started);
       if (left > 0) await new Promise((r) => setTimeout(r, left));
 
@@ -467,7 +541,9 @@ export default function LotteryControlPage() {
 
   if (loading) return <PageLoader label="Memuat data undian…" />;
 
-  const empty = pool.length === 0;
+  // "Kosong" selalu berarti kosong SETELAH filter: itulah daftar yang benar-benar
+  // diundi, dan tombol undi harus mati saat daftar itu habis walau pool penuh.
+  const empty = activePool.length === 0;
   const isCustomCount = !COUNT_PRESETS.includes(settings.count as (typeof COUNT_PRESETS)[number]);
 
   return (
@@ -563,6 +639,59 @@ export default function LotteryControlPage() {
           </p>
         </div>
 
+        {/* Filter kelompok SP. Ikut tersimpan di preset babak, sehingga satu
+            preset bisa berarti "Doorprize SP1-SP3" lengkap dengan durasi dan
+            jumlah pemenangnya. */}
+        <div>
+          <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+            <span className="field-label">Kelompok SP yang ikut undian</span>
+            <button
+              type="button"
+              onClick={() => updateSettings({ induk: [] })}
+              disabled={!filterOn || drawing || busy}
+              className="text-xs font-semibold text-brand-700 hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline"
+            >
+              Ikutkan semua kelompok
+            </button>
+          </div>
+          {groups.length === 0 ? (
+            <p className="text-sm text-slate-500">Belum ada kelompok SP di dalam undian.</p>
+          ) : (
+            <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+              {groups.map((g) => {
+                const checked = !filterOn || selectedInduk.includes(g.induk);
+                // Centang terakhir dikunci, bukan diam-diam ditolak saat diklik.
+                const last = checked && (filterOn ? selectedInduk.length : groups.length) === 1;
+                return (
+                  <label
+                    key={g.induk}
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors ${
+                      checked ? 'border-brand-300 bg-brand-50' : 'border-slate-300 bg-white'
+                    } ${last ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:border-brand-400'}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={drawing || busy || last}
+                      onChange={() => toggleInduk(g.induk)}
+                      className="h-4 w-4 rounded border-slate-400 text-brand-700 focus:ring-brand-600"
+                    />
+                    <span className="font-mono font-bold text-brand-700">{g.induk}</span>
+                    <span className="ml-auto text-xs text-slate-500">{g.count} peserta</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          <p className="mt-1 text-xs text-slate-500">
+            {filterOn
+              ? `Hanya ${selectedInduk.join(', ')} yang bisa terundi — ${activePool.length} dari ${pool.length} peserta.`
+              : 'Semua kelompok ikut. Lepas centang untuk membatasi undian ke kelompok tertentu.'}
+            {unfilterable > 0 &&
+              ` ${unfilterable} peserta dengan kode SP tak terbaca hanya ikut saat semua kelompok diikutkan.`}
+          </p>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Segmented
@@ -639,7 +768,14 @@ export default function LotteryControlPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge color={empty ? 'slate' : 'green'}>{pool.length} peserta di dalam undian</Badge>
+            <Badge color={empty ? 'slate' : 'green'}>
+              {activePool.length} peserta di dalam undian
+            </Badge>
+            {filterOn && (
+              <Badge color="amber">
+                {selectedInduk.length} dari {groups.length} kelompok SP
+              </Badge>
+            )}
             <Badge color="blue">{winners.length} sudah menang</Badge>
             <Badge color={stageSeen ? 'green' : 'slate'}>
               {stageSeen ? 'Layar besar terhubung' : 'Layar besar belum terbuka'}
@@ -650,15 +786,28 @@ export default function LotteryControlPage() {
           </p>
         </div>
 
-        <LotteryReel pool={pool} spinning={drawing} winners={revealed} durationMs={settings.durationMs} />
+        <LotteryReel
+          pool={activePool}
+          spinning={drawing}
+          winners={revealed}
+          durationMs={settings.durationMs}
+        />
 
         {partialNote && <Alert variant="info" title="Undian sebagian">{partialNote}</Alert>}
 
         {empty ? (
-          <Alert variant="info" title="Semua peserta sudah mendapat giliran">
-            Tidak ada lagi peserta yang bisa diundi. Batalkan undian terakhir, kembalikan salah satu
-            pemenang, atau reset undian bila ingin mengulang.
-          </Alert>
+          filterOn && pool.length > 0 ? (
+            <Alert variant="info" title="Kelompok yang dicentang sudah habis">
+              Semua peserta dari {selectedInduk.join(', ')} sudah mendapat giliran, tapi masih ada{' '}
+              {pool.length} peserta di kelompok lain. Centang kelompok lain atau ikutkan semua
+              kelompok untuk melanjutkan.
+            </Alert>
+          ) : (
+            <Alert variant="info" title="Semua peserta sudah mendapat giliran">
+              Tidak ada lagi peserta yang bisa diundi. Batalkan undian terakhir, kembalikan salah
+              satu pemenang, atau reset undian bila ingin mengulang.
+            </Alert>
+          )
         ) : (
           <Button size="lg" fullWidth onClick={() => void draw()} loading={drawing} disabled={busy}>
             {drawing

@@ -196,6 +196,78 @@ describe.skipIf(!available)('lottery services', () => {
     expect(await listLotteryWinners()).toHaveLength(0);
   });
 
+  // -------------------------------------------------------------------------
+  // SP Induk filter
+  //
+  // The promise under test is that a name from an unselected group can NEVER
+  // win — not merely that it is hidden from the screen. The filter therefore
+  // has to hold inside the draw transaction, not only in getLotteryPool().
+  // -------------------------------------------------------------------------
+
+  async function seedThreeGroups() {
+    const s = await createSession();
+    await createParticipant(s.id, 'SP1');
+    await createParticipant(s.id, 'SP1.1');
+    await createParticipant(s.id, 'SP2');
+    await createParticipant(s.id, 'SP3');
+    await createParticipant(s.id, 'SP3.1A');
+    return s;
+  }
+
+  it('narrows the pool to the selected groups', async () => {
+    await seedThreeGroups();
+    const pool = await getLotteryPool({ induk: ['SP1', 'SP2'] });
+    expect(pool.map((p) => p.sp_code)).toEqual(['SP1', 'SP1.1', 'SP2']);
+  });
+
+  it('treats an empty filter as every group', async () => {
+    await seedThreeGroups();
+    expect(await getLotteryPool({ induk: [] })).toHaveLength(5);
+    expect(await getLotteryPool()).toHaveLength(5);
+  });
+
+  /**
+   * REGRESSION GUARD: as a prefix, 'SP1' also matches 'SP10' and 'SP12'. A
+   * startsWith filter would quietly pull the whole SP10-SP19 branch into a draw
+   * the committee had limited to SP1.
+   */
+  it('does not treat SP10 as part of SP1', async () => {
+    const s = await createSession();
+    await createParticipant(s.id, 'SP1');
+    await createParticipant(s.id, 'SP10');
+    await createParticipant(s.id, 'SP10.2');
+
+    const pool = await getLotteryPool({ induk: ['SP1'] });
+    expect(pool.map((p) => p.sp_code)).toEqual(['SP1']);
+  });
+
+  it('only ever draws winners from the selected groups', async () => {
+    await seedThreeGroups();
+    const { draws } = await drawLotteryWinner('Panitia A', { count: 20, induk: ['SP1', 'SP2'] });
+    expect(draws.map((d) => d.spCode).sort()).toEqual(['SP1', 'SP1.1', 'SP2']);
+    // The unselected groups are untouched: a filter limits the draw, it does
+    // not consume anyone.
+    expect(await getLotteryPool()).toHaveLength(2);
+  });
+
+  it('reports an empty filtered pool as a filter problem, naming the groups', async () => {
+    await seedThreeGroups();
+    await drawLotteryWinner('Panitia A', { count: 20, induk: ['SP2'] });
+
+    await expect(drawLotteryWinner('Panitia A', { induk: ['SP2'] })).rejects.toMatchObject({
+      status: 400,
+      message: 'Tidak ada peserta tersisa untuk diundi pada kelompok SP2.',
+    });
+    // ... while an unfiltered draw still works, because 4 people remain.
+    expect((await drawOne()).draw).toBeTruthy();
+  });
+
+  it('matches group names case-insensitively and ignores duplicates', async () => {
+    await seedThreeGroups();
+    const pool = await getLotteryPool({ induk: [' sp2 ', 'SP2'] });
+    expect(pool.map((p) => p.sp_code)).toEqual(['SP2']);
+  });
+
   it('keeps the history row intact after the participant is deleted', async () => {
     const s = await createSession();
     const p = await createParticipant(s.id, 'SP7');
