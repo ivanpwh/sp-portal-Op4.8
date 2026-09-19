@@ -224,6 +224,12 @@ export const MAX_LOTTERY_DRAW_COUNT = 20;
 export interface LotteryDrawOptions {
   count?: number;
   round_label?: string;
+  /**
+   * Kelompok SP Induk yang ikut diundi pada undian ini, mis. ['SP1','SP2'].
+   * KOSONG = seluruh kelompok ikut — itulah perilaku sebelum filter ini ada,
+   * dan tetap jadi bawaan bila field-nya tidak dikirim.
+   */
+  induk?: string[];
 }
 
 // Hasil POST /api/admin/lottery/draw.
@@ -259,6 +265,15 @@ export interface LotterySettings {
   durationMs: number;
   scale: LotteryNameScale;
   effect: LotteryEffect;
+  /**
+   * Kelompok SP Induk yang ikut diundi pada babak ini. KOSONG = semua kelompok.
+   *
+   * Ikut tersimpan di preset babak (LotteryPreset), sehingga satu preset bisa
+   * berarti "Doorprize SP1-SP3". Nilai ini hanya kenyamanan lokal — yang
+   * menentukan siapa boleh menang tetap filter yang dikirim ke server saat
+   * mengundi (lihat LotteryDrawOptions.induk).
+   */
+  induk: string[];
 }
 
 /** Satu preset babak yang disimpan panitia sebelum acara. */

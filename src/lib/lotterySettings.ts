@@ -13,6 +13,7 @@
 
 import type { LotteryPreset, LotterySettings } from '../types';
 import { DEFAULT_DRAW_ANIMATION_MS } from '../components/LotteryReel';
+import { MAX_INDUK_FILTER, SP_INDUK_RE, normalizeIndukList } from './format';
 
 const LS_SETTINGS = 'sp.lottery_settings';
 const LS_PRESETS = 'sp.lottery_presets';
@@ -26,7 +27,27 @@ export const DEFAULT_LOTTERY_SETTINGS: LotterySettings = {
   durationMs: DEFAULT_DRAW_ANIMATION_MS,
   scale: 'besar',
   effect: 'drumroll',
+  // Kosong = seluruh kelompok SP ikut diundi. Bawaan ini penting: panitia yang
+  // belum pernah menyentuh filter tidak boleh mendapati undiannya menyempit.
+  induk: [],
 };
+
+/**
+ * Bersihkan filter kelompok yang terbaca dari storage.
+ *
+ * Entri yang bukan SP Induk DIBUANG di sini — beda dari normalizeIndukList yang
+ * membiarkannya lewat. Isi kunci ini hanya pernah ditulis oleh daftar kelompok
+ * di halaman kontrol, jadi entri asing berarti storage sudah rusak atau diedit
+ * tangan; mengirimkannya ke server hanya menghasilkan 422 di tengah acara.
+ * Kalau semuanya terbuang, filter kembali kosong = semua kelompok ikut, dan
+ * halaman kontrol menampilkan keadaan itu apa adanya.
+ */
+function normalizeIndukSetting(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return normalizeIndukList(raw.map((v) => String(v)))
+    .filter((c) => SP_INDUK_RE.test(c))
+    .slice(0, MAX_INDUK_FILTER);
+}
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -63,6 +84,7 @@ export function normalizeSettings(raw: unknown): LotterySettings {
     durationMs: Number.isFinite(durationMs) ? Math.max(0, Math.min(60000, durationMs)) : DEFAULT_DRAW_ANIMATION_MS,
     scale: v.scale === 'sedang' || v.scale === 'raksasa' ? v.scale : 'besar',
     effect: v.effect === 'none' ? 'none' : 'drumroll',
+    induk: normalizeIndukSetting(v.induk),
   };
 }
 

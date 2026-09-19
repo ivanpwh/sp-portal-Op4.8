@@ -37,6 +37,7 @@ import {
   compareSpCode,
   maskEmail,
   maskWhatsApp,
+  normalizeIndukList,
   normalizeSpCode,
   normalizeWhatsApp,
   spInduk,
@@ -958,14 +959,35 @@ function poolEntry(p: Participant): LotteryPoolParticipant {
  * tidak lagi mengeluarkan siapa pun dari pool — itulah mekanisme di balik undo
  * dan tombol "kembalikan ke undian".
  */
-function computePool(): LotteryPoolParticipant[] {
+/**
+ * Set SP Induk yang berhak menang, atau null bila tidak ada filter sama sekali.
+ *
+ * Dicocokkan lewat spInduk(), BUKAN startsWith: sebagai prefix, "SP1" juga
+ * cocok dengan "SP10" dan "SP12" — memilih SP1 saja akan diam-diam menyeret
+ * seluruh cabang SP10-SP19 ikut terundi. Cerminan indukFilterSet di
+ * backend/src/services.ts.
+ */
+function indukFilterSet(induk?: string[]): Set<string> | null {
+  const list = normalizeIndukList(induk);
+  return list.length === 0 ? null : new Set(list);
+}
+
+function computePool(induk?: string[]): LotteryPoolParticipant[] {
   const drawn = new Set(activeDraws().map((d) => d.participant_id));
+  const wanted = indukFilterSet(induk);
   return read<Participant[]>(LS.participants, [])
     .filter((p) => p.attendance_status === 'will_attend' && !drawn.has(p.id))
     .map(poolEntry)
+    .filter((p) => wanted === null || wanted.has(spInduk(p.sp_code)))
     .sort((a, b) => compareSpCode(a.sp_code, b.sp_code));
 }
 
+/**
+ * SELURUH pool yang masih berhak diundi — sengaja tanpa filter kelompok, persis
+ * seperti GET /api/admin/lottery/pool. Dari sinilah halaman kontrol menyusun
+ * daftar kelompok beserta jumlahnya; menyaringnya di sini akan membuat kelompok
+ * yang tidak tercentang lenyap dari daftar dan mustahil dicentang lagi.
+ */
 export function getLotteryPool(): Promise<LotteryPoolParticipant[]> {
   return delay(computePool());
 }
@@ -993,9 +1015,19 @@ export async function drawLotteryWinner(
 ): Promise<LotteryDrawResult> {
   const requested = Math.max(1, Math.min(MAX_LOTTERY_DRAW_COUNT, Math.floor(options.count ?? 1)));
   const roundLabel = (options.round_label ?? '').trim();
+  const induk = normalizeIndukList(options.induk);
 
-  const available = computePool();
-  if (available.length === 0) throw new Error('Tidak ada peserta tersisa untuk diundi.');
+  const available = computePool(induk);
+  if (available.length === 0) {
+    // Pesan berbeda untuk pool yang kosong KARENA filter: itu bisa diperbaiki
+    // panitia dalam dua detik dengan mencentang kelompok lain. Sama dengan
+    // backend/src/services.ts.
+    throw new Error(
+      induk.length > 0
+        ? `Tidak ada peserta tersisa untuk diundi pada kelompok ${induk.join(', ')}.`
+        : 'Tidak ada peserta tersisa untuk diundi.',
+    );
+  }
 
   const drawnAt = nowISO();
   const drawnBy = getSession()?.committee.name ?? '';

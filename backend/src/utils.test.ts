@@ -7,6 +7,7 @@ import {
   normalizeSpCode,
   isValidSpCode,
   spInduk,
+  normalizeIndukList,
   compareSpCode,
   calculateAge,
   jsStr,
@@ -148,6 +149,31 @@ describe('spInduk', () => {
   it('falls back to em-dash for unparseable input', () => {
     expect(spInduk('bogus')).toBe('—');
     expect(spInduk(null)).toBe('—');
+  });
+});
+
+describe('normalizeIndukList', () => {
+  it('uppercases, strips whitespace and drops duplicates', () => {
+    expect(normalizeIndukList([' sp1 ', 'SP1', 'sp2'])).toEqual(['SP1', 'SP2']);
+  });
+
+  it('drops empty entries but keeps first-seen order', () => {
+    expect(normalizeIndukList(['SP3', '', '   ', 'SP1'])).toEqual(['SP3', 'SP1']);
+  });
+
+  it('returns an empty list for nothing at all — meaning "every group"', () => {
+    expect(normalizeIndukList(undefined)).toEqual([]);
+    expect(normalizeIndukList(null)).toEqual([]);
+    expect(normalizeIndukList([])).toEqual([]);
+  });
+
+  /**
+   * Fail-closed. Dropping an entry it cannot recognise would turn ['SPX'] into
+   * [], and [] means EVERY group — the opposite of what was asked for. An
+   * unknown group is kept and simply matches nobody.
+   */
+  it('keeps unrecognised entries instead of widening the draw', () => {
+    expect(normalizeIndukList(['bogus'])).toEqual(['BOGUS']);
   });
 });
 

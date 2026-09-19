@@ -409,6 +409,64 @@ describe('drawLotteryWinner', () => {
     await expect(drawLotteryWinner()).rejects.toThrow(/tidak ada peserta tersisa/i);
   });
 
+  // Filter kelompok SP. Yang diuji di sini adalah janji intinya: nama dari
+  // kelompok yang tidak dicentang TIDAK BOLEH bisa menang, berapa kali pun
+  // diundi — bukan sekadar tidak tampil di layar.
+  describe('filter kelompok SP (induk)', () => {
+    async function seedThreeGroups() {
+      await registerPeople(['Satu A', 'Satu B'], 'SP1');
+      await registerPeople(['Dua A'], 'SP2');
+      await registerPeople(['Tiga A', 'Tiga B'], 'SP3');
+    }
+
+    it('hanya mengundi peserta dari kelompok yang dipilih', async () => {
+      await seedThreeGroups();
+      const { winners } = await drawLotteryWinner({ count: 3, induk: ['SP1', 'SP2'] });
+      expect(winners).toHaveLength(3);
+      expect(winners.map((w) => w.sp_code).sort()).toEqual(['SP1.1', 'SP1.2', 'SP2.1']);
+    });
+
+    it('mengosongkan kelompok terpilih tanpa pernah menyentuh kelompok lain', async () => {
+      await seedThreeGroups();
+      await drawLotteryWinner({ count: 20, induk: ['SP2'] });
+      await expect(drawLotteryWinner({ induk: ['SP2'] })).rejects.toThrow(/kelompok SP2/i);
+      // Kelompok lain tetap utuh — filter membatasi undian, bukan menghapus pool.
+      expect(await getLotteryPool()).toHaveLength(4);
+    });
+
+    it('daftar kosong berarti SEMUA kelompok ikut', async () => {
+      await seedThreeGroups();
+      const { winners } = await drawLotteryWinner({ count: 5, induk: [] });
+      expect(new Set(winners.map((w) => w.sp_code.slice(0, 3)))).toEqual(
+        new Set(['SP1', 'SP2', 'SP3']),
+      );
+    });
+
+    // REGRESI yang dicegah: 'SP1' sebagai prefix juga cocok dengan 'SP10'.
+    // Kalau filter memakai startsWith, memilih SP1 diam-diam menarik seluruh
+    // cabang SP10-SP19 ikut terundi.
+    it('tidak menganggap SP10 bagian dari SP1', async () => {
+      await registerPeople(['Satu'], 'SP1');
+      await registerPeople(['Sepuluh'], 'SP10');
+      const { winners } = await drawLotteryWinner({ count: 5, induk: ['SP1'] });
+      expect(winners.map((w) => w.full_name)).toEqual(['Satu']);
+    });
+
+    it('mengabaikan huruf kecil dan duplikat pada daftar kelompok', async () => {
+      await seedThreeGroups();
+      const { winners } = await drawLotteryWinner({ count: 5, induk: ['sp2', 'SP2', ' sp2 '] });
+      expect(winners.map((w) => w.sp_code)).toEqual(['SP2.1']);
+    });
+
+    // Fail-closed: kelompok yang tidak dikenal tidak cocok dengan siapa pun.
+    // Kalau entri asing dibuang, daftarnya jadi kosong — dan kosong berarti
+    // "semua kelompok", persis kebalikan dari yang diminta.
+    it('menolak mengundi saat kelompok yang dipilih tidak ada isinya', async () => {
+      await seedThreeGroups();
+      await expect(drawLotteryWinner({ induk: ['SP9'] })).rejects.toThrow(/kelompok SP9/i);
+    });
+  });
+
   it('keeps the history row intact after the participant is cancelled', async () => {
     const session = await registerPeople(['Satu']);
     const { winner } = await drawLotteryWinner();

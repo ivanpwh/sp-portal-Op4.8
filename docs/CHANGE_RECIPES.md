@@ -82,6 +82,15 @@ di root juga.
 1. `backend/src/utils.ts` (`isValidSpCode`, `normalizeSpCode`).
 2. `src/lib/format.ts` (`isValidSpCode`, `normalizeSpCode` — versi frontend).
 
+Pola duplikasi yang sama berlaku untuk **SP Induk** (dipakai filter undian):
+`SP_INDUK_RE`, `MAX_INDUK_FILTER`, dan `normalizeIndukList` ada identik di
+`backend/src/utils.ts` dan `src/lib/format.ts`. Satu perbedaan yang disengaja
+dan jangan "diseragamkan": `normalizeIndukList` **tidak** membuang entri yang
+bentuknya salah (daftar kosong berarti *semua kelompok*, jadi membuang entri
+justru melebarkan undian), sedangkan `normalizeIndukSetting` di
+`src/lib/lotterySettings.ts` **membuang**-nya — yang dibersihkannya adalah isi
+localStorage milik browser itu sendiri, bukan masukan dari kawat.
+
 Mengubah regex atau logic normalisasi di salah satu file **wajib** diikuti
 perubahan identik di file pasangannya pada commit yang sama — kalau tidak,
 validasi client (form) dan server (endpoint) akan berbeda, menghasilkan

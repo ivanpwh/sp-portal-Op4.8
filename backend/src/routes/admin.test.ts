@@ -273,6 +273,48 @@ describe.skipIf(!available)('admin lottery endpoints', () => {
     expect(serialized).not.toMatch(/Jl\. Contoh/);
   });
 
+  // The SP Induk filter is only worth anything if it survives the wire. These
+  // two cover the round trip the frontend actually makes: a body field that has
+  // to reach the draw transaction, and a malformed one that must be refused
+  // rather than dropped (a dropped entry leaves an empty list, and an empty list
+  // means EVERY group — the committee would widen the draw while narrowing it).
+  it('POST /lottery/draw only draws from the groups named in induk', async () => {
+    const { token } = await committeeAuth();
+    await seedParticipants(4); // SP1..SP4
+
+    const res = await request(app)
+      .post('/api/admin/lottery/draw')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ count: 10, induk: ['SP1', 'SP2'] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.winners.map((w: { sp_code: string }) => w.sp_code).sort()).toEqual([
+      'SP1',
+      'SP2',
+    ]);
+    expect(res.body.remaining).toBe(0); // remaining is counted WITHIN the filter
+
+    // SP3 and SP4 were never at risk, and are still drawable.
+    const pool = await request(app)
+      .get('/api/admin/lottery/pool')
+      .set('Authorization', `Bearer ${token}`);
+    expect(pool.body.map((p: { sp_code: string }) => p.sp_code)).toEqual(['SP3', 'SP4']);
+  });
+
+  it('POST /lottery/draw rejects an induk entry that is not an SP Induk', async () => {
+    const { token } = await committeeAuth();
+    await seedParticipants(3);
+
+    const res = await request(app)
+      .post('/api/admin/lottery/draw')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ induk: ['SP1.2'] });
+
+    expect(res.status).toBe(422);
+    // Nothing was drawn — a rejected filter must not spend a participant.
+    expect(await prisma.lotteryDraw.count()).toBe(0);
+  });
+
   it('POST /lottery/draw returns a winner dict plus the remaining count', async () => {
     const { token } = await committeeAuth();
     await seedParticipants(3);

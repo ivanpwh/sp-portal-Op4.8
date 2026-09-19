@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import LotteryControlPage from './LotteryControlPage';
 import { DRAW_DURATION_PRESETS } from '../../components/LotteryReel';
 import { DEFAULT_LOTTERY_SETTINGS } from '../../lib/lotterySettings';
+import { submitRegistration } from '../../lib/api.mock';
 
 /**
  * Uji ini ada karena dua cacat lolos ke tangan pengguna justru di lapisan yang
@@ -20,6 +21,41 @@ async function renderPage() {
 
 function group(name: RegExp) {
   return screen.getByRole('group', { name });
+}
+
+function seedOpenEvent() {
+  localStorage.setItem(
+    'sp.event_settings',
+    JSON.stringify({
+      id: 'test-event',
+      event_name: 'Test Event',
+      registration_open: true,
+      qr_checkin_enabled: true,
+      registration_deadline: null,
+      updated_at: new Date().toISOString(),
+    }),
+  );
+}
+
+/**
+ * Daftarkan peserta lewat data layer demo, bukan dengan menulis localStorage
+ * sendiri: halaman ini membaca pool lewat jalur yang sama, jadi bentuk datanya
+ * dijamin ikut berubah kalau suatu saat bentuk penyimpanannya diubah.
+ */
+async function seedGroups(sizes: Record<string, number>) {
+  for (const [induk, count] of Object.entries(sizes)) {
+    await submitRegistration({
+      privacy_consent: true,
+      participants: Array.from({ length: count }, (_, i) => ({
+        full_name: `${induk} Orang ${i + 1}`,
+        sp_code: `${induk}.${i + 1}`,
+        birth_date: '1990-01-01',
+        address: 'Jawa Tengah',
+        whatsapp_number: '081234567890',
+        email: `${induk.toLowerCase()}.${i + 1}@example.com`,
+      })),
+    });
+  }
 }
 
 beforeEach(() => {
@@ -118,6 +154,76 @@ describe('LotteryControlPage — tombol perintah layar', () => {
   it('menandai status sambungan layar besar di antara chip', async () => {
     await renderPage();
     expect(screen.getByText(/Layar besar belum terbuka/i)).toBeTruthy();
+  });
+});
+
+/**
+ * Filter kelompok SP. Yang diuji di sini adalah hal-hal yang tidak terlihat dari
+ * tipe maupun dari uji data layer: jumlah yang ditampilkan panitia sebelum
+ * menekan "Undi", dan satu perangkap arah — daftar kosong di lapisan data berarti
+ * "semua kelompok ikut", sehingga melepas centang terakhir akan MELEBARKAN
+ * undian alih-alih menutupnya.
+ */
+describe('LotteryControlPage — filter kelompok SP', () => {
+  function poolBadge() {
+    return screen.getByText(/peserta di dalam undian/i).textContent ?? '';
+  }
+
+  beforeEach(async () => {
+    seedOpenEvent();
+    await seedGroups({ SP1: 2, SP2: 1, SP3: 2 });
+  });
+
+  it('menampilkan tiap kelompok beserta jumlahnya, semuanya ikut secara bawaan', async () => {
+    await renderPage();
+
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+    for (const box of screen.getAllByRole('checkbox')) {
+      expect((box as HTMLInputElement).checked).toBe(true);
+    }
+    expect(screen.getByRole('checkbox', { name: /^SP2\b/ }).closest('label')?.textContent).toMatch(
+      /1 peserta/,
+    );
+    expect(poolBadge()).toMatch(/^5 peserta/);
+    expect(screen.getByText(/Semua kelompok ikut/i)).toBeTruthy();
+  });
+
+  it('mengecilkan undian ke kelompok yang masih tercentang', async () => {
+    const user = userEvent.setup();
+    await renderPage();
+
+    await user.click(screen.getByRole('checkbox', { name: /^SP3\b/ }));
+
+    expect(poolBadge()).toMatch(/^3 peserta/);
+    expect(screen.getByText(/Hanya SP1, SP2 yang bisa terundi/i)).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: /^SP3\b/ }) as HTMLInputElement).checked).toBe(
+      false,
+    );
+  });
+
+  it('mengunci centang terakhir — melepasnya justru akan mengikutkan semua kelompok', async () => {
+    const user = userEvent.setup();
+    await renderPage();
+
+    await user.click(screen.getByRole('checkbox', { name: /^SP2\b/ }));
+    await user.click(screen.getByRole('checkbox', { name: /^SP3\b/ }));
+
+    const last = screen.getByRole('checkbox', { name: /^SP1\b/ }) as HTMLInputElement;
+    expect(last.checked).toBe(true);
+    expect(last.disabled).toBe(true);
+    expect(poolBadge()).toMatch(/^2 peserta/);
+  });
+
+  it('mengembalikan seluruh kelompok lewat satu tombol', async () => {
+    const user = userEvent.setup();
+    await renderPage();
+
+    await user.click(screen.getByRole('checkbox', { name: /^SP3\b/ }));
+    expect(poolBadge()).toMatch(/^3 peserta/);
+
+    await user.click(screen.getByRole('button', { name: /Ikutkan semua kelompok/i }));
+    expect(poolBadge()).toMatch(/^5 peserta/);
+    expect(screen.getByText(/Semua kelompok ikut/i)).toBeTruthy();
   });
 });
 

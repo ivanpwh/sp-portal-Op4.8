@@ -19,6 +19,7 @@ const SETTINGS: LotterySettings = {
   durationMs: 10000,
   scale: 'raksasa',
   effect: 'none',
+  induk: ['SP1', 'SP3'],
 };
 
 beforeEach(() => {
@@ -49,6 +50,28 @@ describe('normalizeSettings', () => {
     expect(normalizeSettings(null)).toEqual(DEFAULT_LOTTERY_SETTINGS);
     expect(normalizeSettings(undefined)).toEqual(DEFAULT_LOTTERY_SETTINGS);
     expect(normalizeSettings({})).toEqual(DEFAULT_LOTTERY_SETTINGS);
+  });
+
+  // Filter kelompok SP. Nilai ini ikut dikirim ke server saat mengundi, jadi
+  // apa pun yang tersimpan di browser harus keluar dalam bentuk yang tidak
+  // mungkin ditolak 422 di tengah acara.
+  it('kosong secara bawaan — artinya semua kelompok ikut', () => {
+    expect(normalizeSettings({}).induk).toEqual([]);
+    expect(DEFAULT_LOTTERY_SETTINGS.induk).toEqual([]);
+  });
+
+  it('merapikan huruf besar-kecil dan duplikat kelompok', () => {
+    expect(normalizeSettings({ induk: [' sp2 ', 'SP2', 'sp1'] }).induk).toEqual(['SP2', 'SP1']);
+  });
+
+  it('membuang entri yang bukan SP Induk', () => {
+    // 'SP1.2' adalah kode SP lengkap, bukan kelompok; server menolaknya (422).
+    expect(normalizeSettings({ induk: ['SP1', 'SP1.2', 'SP4A', 'bogus'] }).induk).toEqual(['SP1']);
+  });
+
+  it('mengembalikan daftar kosong untuk isi storage yang bukan array', () => {
+    expect(normalizeSettings({ induk: 'SP1' }).induk).toEqual([]);
+    expect(normalizeSettings({ induk: 42 }).induk).toEqual([]);
   });
 
   it('menjepit jumlah pemenang ke rentang 1..20', () => {

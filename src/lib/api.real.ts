@@ -333,6 +333,11 @@ export function drawLotteryWinner(options: LotteryDrawOptions = {}): Promise<Lot
   return request<LotteryDrawResult>('POST', '/api/admin/lottery/draw', {
     count: options.count ?? 1,
     round_label: options.round_label ?? '',
+    // Daftar kosong = semua kelompok ikut. Filter ini WAJIB ikut terkirim:
+    // halaman kontrol juga menyaring salinan pool-nya sendiri untuk tampilan,
+    // dan filter yang cuma tampilan akan mengumumkan pemenang dari kelompok
+    // yang baru saja dikeluarkan panitia.
+    induk: options.induk ?? [],
   });
 }
 

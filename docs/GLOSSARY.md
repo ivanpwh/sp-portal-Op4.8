@@ -138,9 +138,21 @@ hanya dua:
 
 Yang **tidak** memengaruhi pool: status check-in (`is_checked_in`) sengaja
 diabaikan, jadi peserta yang belum sempat check-in tetap bisa menang. Tidak ada
-pengelompokan atau pembobotan per SP Induk — tiap `Participant` adalah satu
-entri independen, termasuk pasangan ber-suffix `A` (lihat "SP Code, SP Induk,
-suffix A" di atas).
+**pembobotan** per SP Induk — tiap `Participant` adalah satu entri independen,
+termasuk pasangan ber-suffix `A` (lihat "SP Code, SP Induk, suffix A" di atas),
+sehingga kelompok besar tidak "dikecilkan" dan kelompok kecil tidak dinaikkan
+peluangnya.
+
+**Filter kelompok SP** (`induk` pada `POST /api/admin/lottery/draw`) adalah
+syarat ketiga yang bersifat **opsional dan per undian**: panitia mencentang SP
+Induk mana saja yang ikut babak ini, mis. `['SP1','SP2','SP3']`. Aturan yang
+gampang terbalik: **daftar kosong berarti SELURUH kelompok ikut**, bukan tidak
+ada satu pun — itulah sebabnya halaman kontrol tidak mengizinkan seluruh
+centang dilepas, dan entri yang bentuknya salah ditolak (422) alih-alih dibuang.
+Pencocokan memakai `spInduk()` dan **bukan** `startsWith`: sebagai prefix `SP1`
+juga cocok dengan `SP10`/`SP12`. Filter ini hanya membatasi siapa yang bisa
+terundi pada babak itu — peserta kelompok lain tetap utuh di pool dan tidak
+"terpakai".
 
 Peserta **kembali** ke pool lewat tiga jalan, dan semuanya *soft void* —
 barisnya ditandai, tidak dihapus: `POST /lottery/undo` (membatalkan seluruh
