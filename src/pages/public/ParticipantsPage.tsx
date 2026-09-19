@@ -1,13 +1,30 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getPublicParticipants } from '../../lib/api';
-import type { PublicSpIndukGroup } from '../../types';
-import { Badge, Button, Card, CountUp, Input, PageLoader } from '../../components/ui';
+import type { PublicParticipant, PublicSpIndukGroup } from '../../types';
+import { Badge, Button, Card, CountUp, Input, PageLoader, Select } from '../../components/ui';
+
+type SortMode = 'sp' | 'name';
+
+/**
+ * Bandingkan nama sesuai kebiasaan Bahasa Indonesia, mengabaikan beda huruf
+ * besar/kecil dan tanda diakritik — "Ahmad", "ahmad", dan "Áhmad" duduk
+ * berdampingan, bukan terlempar ke ujung daftar seperti pada perbandingan
+ * kode karakter biasa.
+ *
+ * Kode SP jadi penentu saat namanya persis sama: tanpa itu dua orang bernama
+ * sama bisa bertukar tempat di tiap render, dan daftar tampak berkedip.
+ */
+function compareByName(a: PublicParticipant, b: PublicParticipant): number {
+  const n = a.full_name.localeCompare(b.full_name, 'id', { sensitivity: 'base' });
+  return n !== 0 ? n : a.sp_code.localeCompare(b.sp_code, 'id');
+}
 
 export default function ParticipantsPage() {
   const [groups, setGroups] = useState<PublicSpIndukGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<SortMode>('sp');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -36,6 +53,21 @@ export default function ParticipantsPage() {
       }))
       .filter((g) => g.participants.length > 0);
   }, [groups, q]);
+
+  /**
+   * Pengurutan dilakukan SETELAH penyaringan dan hanya di dalam tiap kelompok —
+   * urutan kelompok SP Induk itu sendiri tidak ikut berubah, karena itulah
+   * kerangka halaman ini.
+   *
+   * 'sp' TIDAK mengurutkan ulang apa pun: backend sudah mengirim peserta urut
+   * kode SP (services.publicParticipants()), dan mengurutkannya lagi di sini
+   * hanya akan menjadi salinan kedua dari aturan yang sama — yang bisa
+   * menyimpang diam-diam begitu salah satunya berubah.
+   */
+  const shown = useMemo(() => {
+    if (sort === 'sp') return filtered;
+    return filtered.map((g) => ({ ...g, participants: [...g.participants].sort(compareByName) }));
+  }, [filtered, sort]);
 
   const totalPeople = useMemo(
     () => groups.reduce((s, g) => s + g.participants.length, 0),
@@ -93,19 +125,28 @@ export default function ParticipantsPage() {
               <p className="text-sm text-slate-500">Total Peserta</p>
             </div>
           </div>
-          <div className="mt-4">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
             <Input
               placeholder="🔍 Cari nama atau kode SP…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               aria-label="Cari peserta"
             />
-            {isSearching && (
-              <p className="field-hint">
-                Menampilkan {shownPeople} peserta untuk “{query.trim()}”.
-              </p>
-            )}
+            <Select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortMode)}
+              aria-label="Urutkan peserta"
+              className="sm:w-56"
+            >
+              <option value="sp">Urutkan: Kode SP</option>
+              <option value="name">Urutkan: Nama A–Z</option>
+            </Select>
           </div>
+          {isSearching && (
+            <p className="field-hint">
+              Menampilkan {shownPeople} peserta untuk “{query.trim()}”.
+            </p>
+          )}
         </Card>
 
         {groups.length === 0 && (
@@ -124,7 +165,7 @@ export default function ParticipantsPage() {
         )}
 
         <div className="space-y-4">
-          {filtered.map((g) => {
+          {shown.map((g) => {
                 const open = isSearching || expanded.has(g.induk);
                 return (
                   <Card key={g.induk} className="animate-fade-in-up !p-0">
